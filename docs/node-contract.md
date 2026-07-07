@@ -2,7 +2,7 @@
 
 Every AxisFlow node is a standalone Rust binary named `af-<name>` (e.g.
 `af-data`, `af-vault`, `af-http`, `af-llm`). All nodes share one uniform
-interface so the Orchestrator and AI Planner can treat them generically.
+interface so the Orchestrator can treat every node generically.
 
 ## 1. Modes (subcommands)
 
@@ -12,8 +12,8 @@ interface so the Orchestrator and AI Planner can treat them generically.
 | `af-data --describe`  | Print the **capability manifest** (JSON) for discovery & validation. |
 | `af-data --version`   | Print version string (semver).                                       |
 
-The manifest is the single source of truth the AI Planner uses to know what a
-node can do, and the Orchestrator uses to validate a Flow Spec before running.
+The manifest is the single source of truth the Orchestrator uses to discover
+node capabilities and validate a Flow Spec before running.
 
 ## 2. Capability manifest (`--describe`)
 

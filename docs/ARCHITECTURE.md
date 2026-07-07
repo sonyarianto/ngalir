@@ -1,24 +1,21 @@
 # AxisFlow — Architecture Specification
 
-> Status: DRAFT / under discussion. Tool like n8n, built in Rust.
-> Core idea: flow nodes are standalone CLI binaries (`af-*`). Flows are composed
-> from an AI prompt instead of a visual builder (visual builder deferred).
+> Status: v1 — production-grade scaffold. Tool like n8n, built in Rust.
+> Core idea: flow nodes are standalone CLI binaries (`af-*`). Flows are
+> declarative YAML DAGs executed by the `axisflow` Orchestrator.
 
 ## High-level layers
 
 1. **Node Contract** — uniform interface every `af-*` binary must implement.
-2. **Flow Spec** — declarative YAML/JSON DAG produced by the AI Planner.
+2. **Flow Spec** — declarative YAML/JSON DAG; the single source of truth.
 3. **Orchestrator** — Rust engine that validates and executes the Flow Spec.
-4. **AI Planner** — turns a natural-language prompt into a Flow Spec.
-5. **Credential Layer (`af-vault`)** — secure secret injection at runtime.
+4. **Credential Layer (`af-vault`)** — secure secret injection at runtime.
 
 See `docs/node-contract.md` for the detailed Node Contract.
 
 ## Design principles
 
 - Every node is independently runnable, testable, and discoverable.
-- The AI never executes code; it only *generates* a Flow Spec that the
-  Orchestrator validates against node manifests before running.
 - Secrets never travel through `argv` (visible in `ps`); they are injected
   by the Orchestrator via `af-vault` into the node's environment.
 - Fail fast: schema/contract violations are caught before execution.
@@ -90,5 +87,4 @@ Locked 2026-07-07:
 
 - A. Subprocess (default, LOCKED for v1) vs compiled plugin (wasm/Rust lib) — v2.
 - B. YAML (LOCKED for v1) vs JSON-only.
-- C. AI model: local vs API; which LLM — needed for AI Planner layer.
-- D. Inter-node data transport for large payloads (stdin/stdout vs shared file/pipe) — v2.
+- C. Inter-node data transport for large payloads (stdin/stdout vs shared file/pipe) — v2.

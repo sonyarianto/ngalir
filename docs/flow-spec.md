@@ -1,6 +1,6 @@
 # Flow Spec
 
-Declarative DAG produced by the AI Planner and executed by the Orchestrator.
+Declarative DAG executed by the AxisFlow Orchestrator.
 Language: **YAML** (human + AI friendly), parsed internally into a typed Rust
 struct. JSON is also accepted (superset of YAML).
 
