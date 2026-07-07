@@ -1,0 +1,13 @@
+version: 1
+name: echo-demo
+description: "Minimal end-to-end demo: a -> b wires a.echo into b.message"
+concurrency: 4
+nodes:
+  - id: a
+    use: echo
+    with:
+      message: "hello from AxisFlow"
+  - id: b
+    use: echo
+    inputs:
+      message: a.echo
