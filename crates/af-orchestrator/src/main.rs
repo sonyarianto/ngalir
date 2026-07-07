@@ -11,9 +11,12 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 use tokio::sync::{Mutex, Semaphore};
+use tracing::{error, info, info_span, warn, Instrument};
+use tracing_subscriber::fmt::format::FmtSpan;
 
 // ── Flow Spec types ────────────────────────────────────────────────────────
 
@@ -133,6 +136,11 @@ async fn discover_node(use_name: &str) -> Result<NodeBin> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .json()
+        .with_span_events(FmtSpan::CLOSE)
+        .try_init()
+        .ok();
     run().await
 }
 
@@ -149,15 +157,16 @@ async fn run() -> Result<()> {
     let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(HashMap::new()));
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
 
+    let flow_span = info_span!("flow", name = %flow.name, version = flow.version);
+    let _guard = flow_span.enter();
+
     if !flow.description.is_empty() {
-        println!("[axisflow] description: {}", flow.description);
+        info!(description = %flow.description, "flow description");
     }
-    println!(
-        "[axisflow] running '{}' v{} ({} nodes, concurrency={})",
-        flow.name,
-        flow.version,
-        remaining.len(),
-        flow.concurrency
+    info!(
+        nodes = remaining.len(),
+        concurrency = flow.concurrency,
+        "flow starting"
     );
 
     while !remaining.is_empty() {
@@ -201,7 +210,7 @@ async fn run() -> Result<()> {
         }
     }
 
-    println!("[axisflow] FLOW OK: '{}'", flow.name);
+    info!("flow completed");
     Ok(())
 }
 
@@ -252,21 +261,45 @@ async fn run_node(
     input: Value,
     sem: Arc<Semaphore>,
 ) -> Result<(String, Value)> {
+    let span = info_span!("node", id = %node.id, node_type = %node.use_);
+    let started = Instant::now();
+    let node = node.clone();
+    let bin = bin.clone();
+    let result = async { execute_node(&node, &bin, input, sem).await }
+        .instrument(span)
+        .await;
+    match &result {
+        Ok(_) => info!(duration_ms = started.elapsed().as_millis(), "node ok"),
+        Err(e) => {
+            error!(
+                error = %e,
+                duration_ms = started.elapsed().as_millis(),
+                "node failed"
+            );
+        }
+    }
+    result
+}
+
+async fn execute_node(
+    node: &NodeSpec,
+    bin: &NodeBin,
+    input: Value,
+    sem: Arc<Semaphore>,
+) -> Result<(String, Value)> {
     let on_error = node.on_error.as_deref().unwrap_or("stop");
     let max_retries = on_error
         .strip_prefix("retry(")
         .map(|n| n.trim_end_matches(')').parse::<u32>().unwrap_or(0))
         .unwrap_or(0);
 
-    // `when` gate: skip node if condition is explicitly false.
     if let Some(cond) = &node.when {
         if cond.trim() == "false" {
-            eprintln!("[axisflow:skip] node {} (when=false)", node.id);
+            info!(when = "false", "node skipped");
             return Ok((node.id.clone(), Value::Null));
         }
     }
 
-    // Runtime schema validation (fail fast, before spawning the process).
     validate_input(&input, &bin.manifest.inputs, &node.id)?;
 
     let mut attempt = 0u32;
@@ -295,20 +328,25 @@ async fn run_node(
         }
 
         let code = out.status.code().unwrap_or(1);
-        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
 
         if code == af_contract::exit_code::RETRYABLE && attempt < max_retries {
             attempt += 1;
-            eprintln!(
-                "[axisflow:retry] node {} attempt {}/{} failed ({}); retrying",
-                node.id, attempt, max_retries, code
+            warn!(
+                attempt,
+                max_retries,
+                exit_code = code,
+                stderr,
+                "node retrying"
             );
             continue;
         }
         if on_error == "continue" {
-            eprintln!(
-                "[axisflow:warn] node {} failed ({}): {}; continuing",
-                node.id, code, stderr,
+            warn!(
+                exit_code = code,
+                stderr,
+                on_error = "continue",
+                "node failed, continuing"
             );
             return Ok((node.id.clone(), Value::Null));
         }
@@ -332,7 +370,7 @@ fn validate_input(input: &Value, schema: &Value, node_id: &str) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("invalid manifest schema for node '{node_id}': {e}"))?;
     if !validator.is_valid(input) {
         for error in validator.iter_errors(input) {
-            eprintln!("  [axisflow:validation] {node_id}: {error}");
+            warn!(validation_error = %error, "schema violation");
         }
         bail!("schema validation failed for node '{node_id}'");
     }

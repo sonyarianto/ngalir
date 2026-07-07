@@ -78,6 +78,9 @@ Locked 2026-07-07:
   check) + runtime (JSON Schema validation via `jsonschema` crate). Fail-fast
   enforced — invalid types, missing binaries, and missing required inputs are
   all caught *before* node execution.
+- **Structured logging**: `tracing` + `tracing-subscriber` with JSON output.
+  Every flow & node run emits a structured span with timing, exit code, and
+  diagnostics. One JSON log-line per event (Logstash/Elasticsearch friendly).
 
 ## Open questions (deferred)
 
