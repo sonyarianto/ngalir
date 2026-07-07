@@ -1,0 +1,14 @@
+version: 1
+name: jq-demo
+description: "Extract a field from JSON using af-jq"
+nodes:
+  - id: src
+    use: echo
+    with:
+      message: hello
+  - id: extract
+    use: jq
+    inputs:
+      data: src.echo
+    with:
+      filter: .

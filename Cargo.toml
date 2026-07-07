@@ -2,7 +2,11 @@
 resolver = "2"
 members = [
     "crates/af-contract",
+    "crates/af-db",
     "crates/af-echo",
+    "crates/af-file",
+    "crates/af-http",
+    "crates/af-jq",
     "crates/af-orchestrator",
     "crates/af-vault",
 ]

@@ -1,0 +1,15 @@
+version: 1
+name: file-demo
+description: "Write a file, then read it back in the same flow"
+nodes:
+  - id: writer
+    use: file
+    with:
+      action: write
+      path: /tmp/axisflow-demo.txt
+      content: "hello from AxisFlow"
+  - id: reader
+    use: file
+    with:
+      action: read
+      path: /tmp/axisflow-demo.txt

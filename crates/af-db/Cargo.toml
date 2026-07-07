@@ -1,0 +1,12 @@
+[package]
+name = "af-db"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "AxisFlow node: execute SQL queries (PostgreSQL)."
+
+[dependencies]
+af-contract = { path = "../af-contract" }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "tls-rustls"] }
