@@ -7,9 +7,11 @@
 
 use af_contract::Manifest;
 use anyhow::{bail, Context, Result};
+use clap::{Parser, Subcommand};
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::AsyncWriteExt;
@@ -17,6 +19,102 @@ use tokio::process::Command;
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{error, info, info_span, warn, Instrument};
 use tracing_subscriber::fmt::format::FmtSpan;
+
+// ── CLI ────────────────────────────────────────────────────────────────────
+
+#[derive(Parser)]
+#[command(
+    name = "axisflow",
+    version,
+    about = "n8n-like flow engine, built in Rust"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Execute a Flow Spec
+    Run {
+        /// Path to Flow Spec YAML file
+        flow: String,
+    },
+    /// List all available af-* node binaries on PATH / AXISFLOW_NODE_PATH
+    Nodes,
+    /// Validate a Flow Spec without executing it
+    Validate {
+        /// Path to Flow Spec YAML file
+        flow: String,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Run { flow } => {
+            tracing_subscriber::fmt()
+                .json()
+                .with_span_events(FmtSpan::CLOSE)
+                .try_init()
+                .ok();
+            cmd_run(&flow).await
+        }
+        Commands::Nodes => cmd_nodes().await,
+        Commands::Validate { flow } => cmd_validate(&flow).await,
+    }
+}
+
+// ── Subcommands ────────────────────────────────────────────────────────────
+
+async fn cmd_run(path: &str) -> Result<()> {
+    let flow: FlowSpec = parse_flow(path)?;
+    let node_bins = preflight(&flow).await?;
+    execute_flow(&flow, &node_bins).await
+}
+
+async fn cmd_validate(path: &str) -> Result<()> {
+    let flow: FlowSpec = parse_flow(path)?;
+    let bins = preflight(&flow).await?;
+    println!("Flow '{}' is valid.", flow.name);
+    println!("Node types required:");
+    for (use_, bin) in &bins {
+        println!(
+            "  af-{}  v{}  — {}",
+            use_, bin.manifest.version, bin.manifest.description
+        );
+    }
+    Ok(())
+}
+
+async fn cmd_nodes() -> Result<()> {
+    let binaries = scan_binaries();
+    if binaries.is_empty() {
+        println!("No af-* node binaries found on PATH or AXISFLOW_NODE_PATH.");
+        return Ok(());
+    }
+    println!("{} node(s) detected:\n", binaries.len());
+    for name in &binaries {
+        let bin = match describe_binary(name).await {
+            Ok(b) => b,
+            Err(e) => {
+                println!("  {name}  (—describe error: {e})");
+                continue;
+            }
+        };
+        let short = bin
+            .manifest
+            .name
+            .strip_prefix("af-")
+            .unwrap_or(&bin.manifest.name);
+        println!(
+            "  af-{short:12} v{:<8} — {}",
+            bin.manifest.version, bin.manifest.description
+        );
+    }
+    Ok(())
+}
 
 // ── Flow Spec types ────────────────────────────────────────────────────────
 
@@ -50,7 +148,12 @@ struct NodeSpec {
     on_error: Option<String>,
 }
 
-// ── Node registry (binary discovery + manifest) ────────────────────────────
+fn parse_flow(path: &str) -> Result<FlowSpec> {
+    let raw = std::fs::read_to_string(path).with_context(|| format!("read {path}"))?;
+    serde_yaml::from_str(&raw).context("parse flow spec")
+}
+
+// ── Binary discovery ───────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 struct NodeBin {
@@ -58,10 +161,6 @@ struct NodeBin {
     manifest: Manifest,
 }
 
-/// Discover every unique `use_:` node type referenced in the flow.
-/// Runs `af-<use> --describe`, parses the manifest, and runs
-/// structural pre-flight checks (binary exists, required inputs present,
-/// manifest schema itself is valid).
 async fn preflight(flow: &FlowSpec) -> Result<HashMap<String, NodeBin>> {
     let mut cache = HashMap::new();
     for node in &flow.nodes {
@@ -70,7 +169,6 @@ async fn preflight(flow: &FlowSpec) -> Result<HashMap<String, NodeBin>> {
         }
         let bin = discover_node(&node.use_).await?;
 
-        // Structural check: every required input must be wired or in `with`.
         let requireds: Vec<String> = bin
             .manifest
             .inputs
@@ -94,7 +192,6 @@ async fn preflight(flow: &FlowSpec) -> Result<HashMap<String, NodeBin>> {
             }
         }
 
-        // Compile the manifest's JSON Schema so we know it's valid.
         let schema = &bin.manifest.inputs;
         if schema.is_object() {
             jsonschema::validator_for(schema).map_err(|e| {
@@ -109,50 +206,89 @@ async fn preflight(flow: &FlowSpec) -> Result<HashMap<String, NodeBin>> {
 
 async fn discover_node(use_name: &str) -> Result<NodeBin> {
     let binary = format!("af-{use_name}");
-    let mut cmd = Command::new(&binary);
+    if let Some(full) = find_in_node_path(&binary) {
+        return describe_binary(&full).await;
+    }
+    describe_binary(&binary).await
+}
+
+fn find_in_node_path(name: &str) -> Option<String> {
+    let node_path = std::env::var("AXISFLOW_NODE_PATH").ok()?;
+    for dir in std::env::split_paths(&node_path) {
+        let p = dir.join(name);
+        if p.is_file() {
+            return Some(p.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
+async fn describe_binary(path: &str) -> Result<NodeBin> {
+    let mut cmd = Command::new(path);
     cmd.arg("--describe")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+
     let child = cmd.spawn().with_context(|| {
-        format!(
-            "cannot find node binary '{binary}' — ensure it is on PATH or set AXISFLOW_NODE_PATH"
-        )
+        format!("cannot find node binary '{path}' — ensure it is on PATH or set AXISFLOW_NODE_PATH")
     })?;
     let out = child.wait_with_output().await?;
     if !out.status.success() {
         bail!(
-            "{binary} --describe failed (exit {}): {}",
+            "{path} --describe failed (exit {}): {}",
             out.status.code().unwrap_or(1),
             String::from_utf8_lossy(&out.stderr).trim()
         );
     }
     let manifest: Manifest = serde_json::from_slice(&out.stdout)
-        .with_context(|| format!("invalid manifest JSON from {binary} --describe"))?;
-    Ok(NodeBin { binary, manifest })
+        .with_context(|| format!("invalid manifest JSON from {path} --describe"))?;
+    Ok(NodeBin {
+        binary: path.to_string(),
+        manifest,
+    })
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .json()
-        .with_span_events(FmtSpan::CLOSE)
-        .try_init()
-        .ok();
-    run().await
+fn scan_binaries() -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Ok(p) = std::env::var("AXISFLOW_NODE_PATH") {
+        dirs.extend(std::env::split_paths(&p));
+    }
+    if let Ok(p) = std::env::var("PATH") {
+        dirs.extend(std::env::split_paths(&p));
+    }
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("af-") && is_executable(&e) {
+                seen.insert(name);
+            }
+        }
+    }
+    seen.into_iter().collect()
 }
 
-async fn run() -> Result<()> {
-    let path = std::env::args()
-        .nth(1)
-        .context("usage: axisflow <flow.yaml>")?;
-    let raw = std::fs::read_to_string(&path).with_context(|| format!("read {path}"))?;
-    let flow: FlowSpec = serde_yaml::from_str(&raw).context("parse flow spec")?;
+#[cfg(unix)]
+fn is_executable(entry: &std::fs::DirEntry) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    entry
+        .metadata()
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
 
-    let node_bins = preflight(&flow).await?;
+#[cfg(not(unix))]
+fn is_executable(entry: &std::fs::DirEntry) -> bool {
+    entry.metadata().map(|m| m.is_file()).unwrap_or(false)
+}
 
+// ── Flow execution ─────────────────────────────────────────────────────────
+
+async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> Result<()> {
     let sem = Arc::new(Semaphore::new(flow.concurrency.max(1)));
     let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(HashMap::new()));
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
@@ -362,27 +498,8 @@ async fn execute_node(
     }
 }
 
-// ── JSON Schema validation ─────────────────────────────────────────────────
-
-fn validate_input(input: &Value, schema: &Value, node_id: &str) -> Result<()> {
-    if !schema.is_object() {
-        return Ok(());
-    }
-    let validator = jsonschema::validator_for(schema)
-        .map_err(|e| anyhow::anyhow!("invalid manifest schema for node '{node_id}': {e}"))?;
-    if !validator.is_valid(input) {
-        for error in validator.iter_errors(input) {
-            warn!(validation_error = %error, "schema violation");
-        }
-        bail!("schema validation failed for node '{node_id}'");
-    }
-    Ok(())
-}
-
 // ── Vault resolution ──────────────────────────────────────────────────────
 
-/// Walk an input value and replace every `vault://…` string with the
-/// corresponding secret from `af-vault`.
 async fn resolve_vault_refs(input: &mut Value) -> Result<()> {
     resolve_vault_recursive(input).await
 }
@@ -434,6 +551,23 @@ async fn call_vault_resolve(ref_str: &str) -> Result<String> {
         .as_str()
         .context("af-vault response missing 'secret' field")?
         .to_string())
+}
+
+// ── JSON Schema validation ─────────────────────────────────────────────────
+
+fn validate_input(input: &Value, schema: &Value, node_id: &str) -> Result<()> {
+    if !schema.is_object() {
+        return Ok(());
+    }
+    let validator = jsonschema::validator_for(schema)
+        .map_err(|e| anyhow::anyhow!("invalid manifest schema for node '{node_id}': {e}"))?;
+    if !validator.is_valid(input) {
+        for error in validator.iter_errors(input) {
+            warn!(validation_error = %error, "schema violation");
+        }
+        bail!("schema validation failed for node '{node_id}'");
+    }
+    Ok(())
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────

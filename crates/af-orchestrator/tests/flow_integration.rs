@@ -40,6 +40,7 @@ fn demo_flow() -> String {
 #[test]
 fn echo_demo_flow_succeeds() {
     let output = Command::new(axisflow_bin())
+        .arg("run")
         .arg(demo_flow())
         .env("PATH", node_path())
         .output()
@@ -72,6 +73,7 @@ nodes:
     .unwrap();
 
     let output = Command::new(axisflow_bin())
+        .arg("run")
         .arg(tmp.path())
         .env("PATH", node_path())
         .output()
