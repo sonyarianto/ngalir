@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/axisflow-contract",
+    "crates/af-contract",
     "crates/af-echo",
-    "crates/orchestrator",
+    "crates/af-orchestrator",
 ]
 
 [workspace.package]

@@ -6,5 +6,5 @@ license.workspace = true
 description = "Sample AxisFlow node: echoes its input `message` back as `echo`."
 
 [dependencies]
-axisflow-contract = { path = "../axisflow-contract" }
+af-contract = { path = "../af-contract" }
 serde_json = "1"

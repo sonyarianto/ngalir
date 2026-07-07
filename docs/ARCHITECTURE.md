@@ -35,12 +35,16 @@ axisflow/
     node-contract.md         # Node Contract v1
     flow-spec.md             # Flow Spec v1 (locked decisions)
   crates/
-    axisflow-contract/       # shared lib: Manifest, exit_code, helpers
+    af-contract/             # shared lib: Manifest, exit_code, helpers
     af-echo/                 # sample node (implements the contract)
-    orchestrator/            # Orchestrator v1: parse -> DAG -> run
+    af-orchestrator/         # engine crate; produces the `axisflow` binary
   examples/
     echo-demo.yaml           # minimal 2-node flow for smoke testing
 ```
+
+The product entry-point binary is **`axisflow`** (the crate is `af-orchestrator`,
+its `[[bin]]` name is `axisflow`). Run a flow with `axisflow run <flow.yaml>`;
+it spawns the `af-*` node binaries internally.
 
 ## Naming conventions
 
@@ -50,15 +54,17 @@ Locked 2026-07-07:
   `af-http`, `af-llm`. Hyphen (not underscore) because these are typed on the
   command line. The Orchestrator resolves a flow node's `use: <name>` to the
   binary `af-<name>`.
-- **Infrastructure library crates: `axisflow-<name>`** — `axisflow-contract`.
-  These are framework internals, NOT flow nodes, so they do not carry the `af-`
-  prefix (which is reserved for runnable binaries you can wire into a flow).
+- **Infrastructure library crates: `af-<name>`** — `af-contract`.
+- **Product entry-point binary: `axisflow`** — the main CLI (crate
+  `af-orchestrator`, `[[bin]] name = "axisflow"`). It is the umbrella product,
+  not a node, so it intentionally does not carry the `af-` prefix. Usage:
+  `axisflow run <flow.yaml>`.
 - **A "node" vs a "service" is a role, not a name.** `af-vault` is credential
   *storage* — it is invoked by the Orchestrator to resolve `vault://` refs, and
   is NOT placed as a step in the Flow Spec DAG. Role is declared by usage /
   manifest, not encoded in the binary name.
 - Crate names use hyphens; within Rust code the path becomes the underscore
-  form (`axisflow_contract`, `af_echo`).
+  form (`af_contract`, `af_echo`).
 
 ## Status (2026-07-07)
 
@@ -66,7 +72,7 @@ Locked 2026-07-07:
   standard exit codes).
 - **Flow Spec v1**: LOCKED decisions (YAML, dot-path wiring, `when:` branching,
   bounded concurrency, structured logging).
-- **Scaffold**: building & running. `orchestrator` executes `af-echo` end-to-end
+- **Scaffold**: building & running. `axisflow` executes `af-echo` end-to-end
   (`examples/echo-demo.yaml`) with JSON piping between nodes.
 
 ## Open questions (deferred)

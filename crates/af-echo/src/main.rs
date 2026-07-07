@@ -2,7 +2,7 @@
 //!
 //! Demonstrates `--describe`, `--version`, and stdin/stdout JSON execution.
 
-use axisflow_contract::{exit_code, fail, print_manifest, read_input, Manifest};
+use af_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::Value;
 
 fn manifest() -> Manifest {

@@ -1,12 +1,16 @@
 [package]
-name = "orchestrator"
+name = "af-orchestrator"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "AxisFlow Orchestrator: validates and executes a Flow Spec DAG of `af-*` nodes."
 
+[[bin]]
+name = "axisflow"
+path = "src/main.rs"
+
 [dependencies]
-axisflow-contract = { path = "../axisflow-contract" }
+af-contract = { path = "../af-contract" }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1"

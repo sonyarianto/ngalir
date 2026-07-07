@@ -3,11 +3,31 @@
 version = 4
 
 [[package]]
+name = "af-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "af-echo"
 version = "0.1.0"
 dependencies = [
- "axisflow-contract",
+ "af-contract",
  "serde_json",
+]
+
+[[package]]
+name = "af-orchestrator"
+version = "0.1.0"
+dependencies = [
+ "af-contract",
+ "anyhow",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
 ]
 
 [[package]]
@@ -15,14 +35,6 @@ name = "anyhow"
 version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
-
-[[package]]
-name = "axisflow-contract"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "bitflags"
@@ -110,18 +122,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys",
-]
-
-[[package]]
-name = "orchestrator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axisflow-contract",
- "serde",
- "serde_json",
- "serde_yaml",
- "tokio",
 ]
 
 [[package]]

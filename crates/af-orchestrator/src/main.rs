@@ -60,10 +60,10 @@ async fn run() -> Result<()> {
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
 
     if !flow.description.is_empty() {
-        println!("[orchestrator] description: {}", flow.description);
+        println!("[axisflow] description: {}", flow.description);
     }
     println!(
-        "[orchestrator] running '{}' v{} ({} nodes, concurrency={})",
+        "[axisflow] running '{}' v{} ({} nodes, concurrency={})",
         flow.name,
         flow.version,
         remaining.len(),
@@ -108,7 +108,7 @@ async fn run() -> Result<()> {
         }
     }
 
-    println!("[orchestrator] FLOW OK: '{}'", flow.name);
+    println!("[axisflow] FLOW OK: '{}'", flow.name);
     Ok(())
 }
 
@@ -193,7 +193,7 @@ async fn run_node(node: &NodeSpec, input: Value, sem: Arc<Semaphore>) -> Result<
         let code = out.status.code().unwrap_or(1);
         let stderr = String::from_utf8_lossy(&out.stderr);
 
-        if code == axisflow_contract::exit_code::RETRYABLE && attempt < max_retries {
+        if code == af_contract::exit_code::RETRYABLE && attempt < max_retries {
             attempt += 1;
             eprintln!(
                 "[retry] node {} attempt {}/{} failed ({}); retrying",
