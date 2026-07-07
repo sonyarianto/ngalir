@@ -6,7 +6,7 @@ license.workspace = true
 description = "AxisFlow Orchestrator: validates and executes a Flow Spec DAG of `af-*` nodes."
 
 [dependencies]
-axis-contract = { path = "../axis-contract" }
+axisflow-contract = { path = "../axisflow-contract" }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1"

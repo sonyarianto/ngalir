@@ -193,7 +193,7 @@ async fn run_node(node: &NodeSpec, input: Value, sem: Arc<Semaphore>) -> Result<
         let code = out.status.code().unwrap_or(1);
         let stderr = String::from_utf8_lossy(&out.stderr);
 
-        if code == axis_contract::exit_code::RETRYABLE && attempt < max_retries {
+        if code == axisflow_contract::exit_code::RETRYABLE && attempt < max_retries {
             attempt += 1;
             eprintln!(
                 "[retry] node {} attempt {}/{} failed ({}); retrying",

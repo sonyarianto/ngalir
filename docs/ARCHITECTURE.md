@@ -35,12 +35,30 @@ axisflow/
     node-contract.md         # Node Contract v1
     flow-spec.md             # Flow Spec v1 (locked decisions)
   crates/
-    axis-contract/           # shared types: Manifest, exit_code, helpers
+    axisflow-contract/       # shared lib: Manifest, exit_code, helpers
     af-echo/                 # sample node (implements the contract)
     orchestrator/            # Orchestrator v1: parse -> DAG -> run
   examples/
     echo-demo.yaml           # minimal 2-node flow for smoke testing
 ```
+
+## Naming conventions
+
+Locked 2026-07-07:
+
+- **CLI binaries (nodes & services): `af-<name>`** — `af-vault`, `af-db`,
+  `af-http`, `af-llm`. Hyphen (not underscore) because these are typed on the
+  command line. The Orchestrator resolves a flow node's `use: <name>` to the
+  binary `af-<name>`.
+- **Infrastructure library crates: `axisflow-<name>`** — `axisflow-contract`.
+  These are framework internals, NOT flow nodes, so they do not carry the `af-`
+  prefix (which is reserved for runnable binaries you can wire into a flow).
+- **A "node" vs a "service" is a role, not a name.** `af-vault` is credential
+  *storage* — it is invoked by the Orchestrator to resolve `vault://` refs, and
+  is NOT placed as a step in the Flow Spec DAG. Role is declared by usage /
+  manifest, not encoded in the binary name.
+- Crate names use hyphens; within Rust code the path becomes the underscore
+  form (`axisflow_contract`, `af_echo`).
 
 ## Status (2026-07-07)
 
