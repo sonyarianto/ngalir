@@ -44,7 +44,10 @@ pub mod exit_code {
 
 /// Print a manifest as pretty JSON to stdout (used by `--describe`).
 pub fn print_manifest(m: &Manifest) {
-    println!("{}", serde_json::to_string_pretty(m).expect("manifest serialize"));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(m).expect("manifest serialize")
+    );
 }
 
 /// Write a structured error to stderr and exit with the given code.

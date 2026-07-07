@@ -64,7 +64,10 @@ async fn run() -> Result<()> {
     }
     println!(
         "[orchestrator] running '{}' v{} ({} nodes, concurrency={})",
-        flow.name, flow.version, remaining.len(), flow.concurrency
+        flow.name,
+        flow.version,
+        remaining.len(),
+        flow.concurrency
     );
 
     while !remaining.is_empty() {
@@ -94,7 +97,9 @@ async fn run() -> Result<()> {
             drop(guard);
             let sem = sem.clone();
             let node = n.clone();
-            handles.push(tokio::spawn(async move { run_node(&node, input, sem).await }));
+            handles.push(tokio::spawn(
+                async move { run_node(&node, input, sem).await },
+            ));
         }
 
         for h in handles {
@@ -197,9 +202,18 @@ async fn run_node(node: &NodeSpec, input: Value, sem: Arc<Semaphore>) -> Result<
             continue;
         }
         if on_error == "continue" {
-            eprintln!("[warn] node {} failed ({}): {}; continuing", node.id, code, stderr);
+            eprintln!(
+                "[warn] node {} failed ({}): {}; continuing",
+                node.id, code, stderr
+            );
             return Ok((node.id.clone(), Value::Null));
         }
-        bail!("node {} ({}) failed code {}: {}", node.id, binary, code, stderr);
+        bail!(
+            "node {} ({}) failed code {}: {}",
+            node.id,
+            binary,
+            code,
+            stderr
+        );
     }
 }
