@@ -301,6 +301,8 @@ async fn execute_node(
     }
 
     validate_input(&input, &bin.manifest.inputs, &node.id)?;
+    let mut input = input;
+    resolve_vault_refs(&mut input).await?;
 
     let mut attempt = 0u32;
     loop {
@@ -375,6 +377,63 @@ fn validate_input(input: &Value, schema: &Value, node_id: &str) -> Result<()> {
         bail!("schema validation failed for node '{node_id}'");
     }
     Ok(())
+}
+
+// ── Vault resolution ──────────────────────────────────────────────────────
+
+/// Walk an input value and replace every `vault://…` string with the
+/// corresponding secret from `af-vault`.
+async fn resolve_vault_refs(input: &mut Value) -> Result<()> {
+    resolve_vault_recursive(input).await
+}
+
+fn has_vault_prefix(s: &str) -> Option<&str> {
+    s.strip_prefix("vault://").filter(|k| !k.is_empty())
+}
+
+async fn resolve_vault_recursive(value: &mut Value) -> Result<()> {
+    match value {
+        Value::Object(obj) => {
+            for (_, v) in obj.iter_mut() {
+                Box::pin(resolve_vault_recursive(v)).await?;
+            }
+        }
+        Value::String(s) if has_vault_prefix(s).is_some() => {
+            let resolved = call_vault_resolve(s).await?;
+            *s = resolved;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn call_vault_resolve(ref_str: &str) -> Result<String> {
+    let mut cmd = Command::new("af-vault");
+    cmd.stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = cmd.spawn().context("spawn af-vault (is it on PATH?)")?;
+    {
+        let mut stdin = child.stdin.take().context("af-vault stdin")?;
+        let req = serde_json::json!({"ref": ref_str});
+        let bytes = serde_json::to_vec(&req)?;
+        stdin.write_all(&bytes).await?;
+        stdin.shutdown().await?;
+    }
+    let out = child.wait_with_output().await?;
+
+    if !out.status.success() {
+        bail!(
+            "af-vault resolve failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    let result: Value = serde_json::from_slice(&out.stdout).context("parse af-vault output")?;
+    Ok(result["secret"]
+        .as_str()
+        .context("af-vault response missing 'secret' field")?
+        .to_string())
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────

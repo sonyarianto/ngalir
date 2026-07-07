@@ -36,6 +36,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "af-vault"
+version = "0.1.0"
+dependencies = [
+ "af-contract",
+ "serde_json",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -4,6 +4,7 @@ members = [
     "crates/af-contract",
     "crates/af-echo",
     "crates/af-orchestrator",
+    "crates/af-vault",
 ]
 
 [workspace.package]

@@ -38,6 +38,7 @@ axisflow/
     af-contract/             # shared lib: Manifest, exit_code, helpers
     af-echo/                 # sample node (implements the contract)
     af-orchestrator/         # engine crate; produces the `axisflow` binary
+    af-vault/                # credential storage (resolves vault:// refs)
   examples/
     echo-demo.yaml           # minimal 2-node flow for smoke testing
 ```
@@ -81,6 +82,9 @@ Locked 2026-07-07:
 - **Structured logging**: `tracing` + `tracing-subscriber` with JSON output.
   Every flow & node run emits a structured span with timing, exit code, and
   diagnostics. One JSON log-line per event (Logstash/Elasticsearch friendly).
+- **`af-vault`**: credential storage binary that reads a JSON key-value file
+  (default `~/.axisflow/vault.json` or `AXISFLOW_VAULT_FILE`). Orchestrator
+  resolves `vault://<key>` refs at runtime before spawning each node.
 
 ## Open questions (deferred)
 

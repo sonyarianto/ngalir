@@ -1,0 +1,4 @@
+{
+  "db/prod": "postgresql://user:secret@localhost:5432/mydb",
+  "api_key": "sk-test-key-12345"
+}

@@ -1,0 +1,8 @@
+version: 1
+name: echo-vault-demo
+description: "Resolves vault://api_key before passing to af-echo"
+nodes:
+  - id: a
+    use: echo
+    with:
+      message: vault://api_key
