@@ -74,6 +74,10 @@ Locked 2026-07-07:
   bounded concurrency, structured logging).
 - **Scaffold**: building & running. `axisflow` executes `af-echo` end-to-end
   (`examples/echo-demo.yaml`) with JSON piping between nodes.
+- **Schema validation**: pre-flight (binary discovery, manifest parse, required-input
+  check) + runtime (JSON Schema validation via `jsonschema` crate). Fail-fast
+  enforced — invalid types, missing binaries, and missing required inputs are
+  all caught *before* node execution.
 
 ## Open questions (deferred)
 
