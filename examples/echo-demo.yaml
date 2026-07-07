@@ -6,7 +6,7 @@ nodes:
   - id: a
     use: echo
     with:
-      message: "hello from AxisFlow"
+      message: "hello from Kucur"
   - id: b
     use: echo
     inputs:

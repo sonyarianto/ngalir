@@ -1,6 +1,6 @@
 # Flow Spec
 
-Declarative DAG executed by the AxisFlow Orchestrator.
+Declarative DAG executed by the Kucur Orchestrator.
 Language: **YAML** (human + AI friendly), parsed internally into a typed Rust
 struct. JSON is also accepted (superset of YAML).
 
@@ -13,25 +13,25 @@ description: "Pull rows, transform, email the team"
 concurrency: 8
 nodes:
   - id: src
-    use: af-data            # -> resolves to binary `af-data`
+    use: kc-data            # -> resolves to binary `kc-data`
     with:                   # static params (literal values)
       query: "SELECT id, amount FROM orders WHERE day = current_date"
       connection: vault://db/prod
   - id: transform
-    use: af-jq
+    use: kc-jq
     with:
       filter: ".rows[] | {id, amount}"
     inputs:                 # dynamic wiring from upstream outputs
       data: src.rows        # <upstream_id>.<output_field>
   - id: notify
-    use: af-mail
+    use: kc-mail
     with:
       to: team@example.com
     inputs:
       body: transform.result
     on_error: stop          # stop | continue | retry(N)
   - id: alert
-    use: af-mail
+    use: kc-mail
     when: "{{ src.row_count > 1000 }}"   # node only runs if condition true
     inputs:
       body: src.rows
@@ -42,7 +42,7 @@ nodes:
 - `version` — Flow Spec schema version (currently `1`).
 - `concurrency` — max parallel node executions (default `8`).
 - `nodes[].id` — unique within the flow; referenced by downstream wiring.
-- `nodes[].use` — node name; Orchestrator looks up the `af-<use>` binary and
+- `nodes[].use` — node name; Orchestrator looks up the `kc-<use>` binary and
   reads its manifest via `--describe` to validate `with` + `inputs`.
 - `nodes[].with` — literal params merged into the node's input JSON.
 - `nodes[].inputs` — values wired from upstream node outputs, addressed as
@@ -58,8 +58,8 @@ nodes:
   `concurrency` (worker pool / semaphore).
 - **Validation before run**: every node's resolved input is checked against its
   manifest JSON Schema. Invalid flow fails fast with a clear error.
-- **Secrets**: any `vault://` value in `with` is resolved by `af-vault` and
-  injected into the node env as `AXISFLOW_SECRET_*` before spawn.
+- **Secrets**: any `vault://` value in `with` is resolved by `kc-vault` and
+  injected into the node env as `KUCUR_SECRET_*` before spawn.
 - **Branching**: via `when:` expression on a node (skips node if false).
 - **Loops / iteration**: deferred to v2 (map over streamed arrays).
 

@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/af-contract",
-    "crates/af-db",
-    "crates/af-echo",
-    "crates/af-file",
-    "crates/af-http",
-    "crates/af-jq",
-    "crates/af-orchestrator",
-    "crates/af-vault",
+    "crates/kc-contract",
+    "crates/kc-db",
+    "crates/kc-echo",
+    "crates/kc-file",
+    "crates/kc-http",
+    "crates/kc-jq",
+    "crates/kc-orchestrator",
+    "crates/kc-vault",
 ]
 
 [workspace.package]

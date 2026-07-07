@@ -3,84 +3,6 @@
 version = 4
 
 [[package]]
-name = "af-contract"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "af-db"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "serde_json",
- "sqlx",
- "tokio",
-]
-
-[[package]]
-name = "af-echo"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "serde_json",
-]
-
-[[package]]
-name = "af-file"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "serde_json",
-]
-
-[[package]]
-name = "af-http"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "reqwest",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "af-jq"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "serde_json",
-]
-
-[[package]]
-name = "af-orchestrator"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "af-echo",
- "anyhow",
- "clap",
- "jsonschema",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "af-vault"
-version = "0.1.0"
-dependencies = [
- "af-contract",
- "serde_json",
-]
-
-[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1242,6 +1164,84 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbd1086b01b9349fd4ef9a07433965af64c8ce8159abe633a189e4ff817bd13"
 dependencies = [
  "regex-syntax",
+]
+
+[[package]]
+name = "kc-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kc-db"
+version = "0.1.0"
+dependencies = [
+ "kc-contract",
+ "serde_json",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "kc-echo"
+version = "0.1.0"
+dependencies = [
+ "kc-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "kc-file"
+version = "0.1.0"
+dependencies = [
+ "kc-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "kc-http"
+version = "0.1.0"
+dependencies = [
+ "kc-contract",
+ "reqwest",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "kc-jq"
+version = "0.1.0"
+dependencies = [
+ "kc-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "kc-orchestrator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jsonschema",
+ "kc-contract",
+ "kc-echo",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "kc-vault"
+version = "0.1.0"
+dependencies = [
+ "kc-contract",
+ "serde_json",
 ]
 
 [[package]]

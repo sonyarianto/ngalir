@@ -1,0 +1,10 @@
+[package]
+name = "kc-vault"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kucur credential storage. Resolves vault:// refs to secret values."
+
+[dependencies]
+kc-contract = { path = "../kc-contract" }
+serde_json = "1"

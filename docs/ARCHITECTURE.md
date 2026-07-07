@@ -1,15 +1,15 @@
-# AxisFlow — Architecture Specification
+# Kucur — Architecture Specification
 
 > Status: v1 — production-grade scaffold. Tool like n8n, built in Rust.
-> Core idea: flow nodes are standalone CLI binaries (`af-*`). Flows are
-> declarative YAML DAGs executed by the `axisflow` Orchestrator.
+> Core idea: flow nodes are standalone CLI binaries (`kc-*`). Flows are
+> declarative YAML DAGs executed by the `kucur` Orchestrator.
 
 ## High-level layers
 
-1. **Node Contract** — uniform interface every `af-*` binary must implement.
+1. **Node Contract** — uniform interface every `kc-*` binary must implement.
 2. **Flow Spec** — declarative YAML/JSON DAG; the single source of truth.
 3. **Orchestrator** — Rust engine that validates and executes the Flow Spec.
-4. **Credential Layer (`af-vault`)** — secure secret injection at runtime.
+4. **Credential Layer (`kc-vault`)** — secure secret injection at runtime.
 
 See `docs/node-contract.md` for the detailed Node Contract.
 
@@ -17,7 +17,7 @@ See `docs/node-contract.md` for the detailed Node Contract.
 
 - Every node is independently runnable, testable, and discoverable.
 - Secrets never travel through `argv` (visible in `ps`); they are injected
-  by the Orchestrator via `af-vault` into the node's environment.
+  by the Orchestrator via `kc-vault` into the node's environment.
 - Fail fast: schema/contract violations are caught before execution.
 
 ## Repository layout
@@ -25,44 +25,44 @@ See `docs/node-contract.md` for the detailed Node Contract.
 Cargo workspace (resolver 2):
 
 ```
-axisflow/
+kucur/
   Cargo.toml                 # workspace + shared workspace.package
   docs/
     ARCHITECTURE.md          # this file
     node-contract.md         # Node Contract v1
     flow-spec.md             # Flow Spec v1 (locked decisions)
   crates/
-    af-contract/             # shared lib: Manifest, exit_code, helpers
-    af-echo/                 # sample node (implements the contract)
-    af-orchestrator/         # engine crate; produces the `axisflow` binary
-    af-vault/                # credential storage (resolves vault:// refs)
+    kc-contract/             # shared lib: Manifest, exit_code, helpers
+    kc-echo/                 # sample node (implements the contract)
+    kc-orchestrator/         # engine crate; produces the `kucur` binary
+    kc-vault/                # credential storage (resolves vault:// refs)
   examples/
     echo-demo.yaml           # minimal 2-node flow for smoke testing
 ```
 
-The product entry-point binary is **`axisflow`** (the crate is `af-orchestrator`,
-its `[[bin]]` name is `axisflow`). Run a flow with `axisflow run <flow.yaml>`;
-it spawns the `af-*` node binaries internally.
+The product entry-point binary is **`kucur`** (the crate is `kc-orchestrator`,
+its `[[bin]]` name is `kucur`). Run a flow with `kucur run <flow.yaml>`;
+it spawns the `kc-*` node binaries internally.
 
 ## Naming conventions
 
 Locked 2026-07-07:
 
-- **CLI binaries (nodes & services): `af-<name>`** — `af-vault`, `af-db`,
-  `af-http`, `af-llm`. Hyphen (not underscore) because these are typed on the
+- **CLI binaries (nodes & services): `kc-<name>`** — `kc-vault`, `kc-db`,
+  `kc-http`, `kc-llm`. Hyphen (not underscore) because these are typed on the
   command line. The Orchestrator resolves a flow node's `use: <name>` to the
-  binary `af-<name>`.
-- **Infrastructure library crates: `af-<name>`** — `af-contract`.
-- **Product entry-point binary: `axisflow`** — the main CLI (crate
-  `af-orchestrator`, `[[bin]] name = "axisflow"`). It is the umbrella product,
-  not a node, so it intentionally does not carry the `af-` prefix. Usage:
-  `axisflow run <flow.yaml>`.
-- **A "node" vs a "service" is a role, not a name.** `af-vault` is credential
+  binary `kc-<name>`.
+- **Infrastructure library crates: `kc-<name>`** — `kc-contract`.
+- **Product entry-point binary: `kucur`** — the main CLI (crate
+  `kc-orchestrator`, `[[bin]] name = "kucur"`). It is the umbrella product,
+  not a node, so it intentionally does not carry the `kc-` prefix. Usage:
+  `kucur run <flow.yaml>`.
+- **A "node" vs a "service" is a role, not a name.** `kc-vault` is credential
   *storage* — it is invoked by the Orchestrator to resolve `vault://` refs, and
   is NOT placed as a step in the Flow Spec DAG. Role is declared by usage /
   manifest, not encoded in the binary name.
 - Crate names use hyphens; within Rust code the path becomes the underscore
-  form (`af_contract`, `af_echo`).
+  form (`kc_contract`, `kc_echo`).
 
 ## Status (2026-07-07)
 
@@ -70,7 +70,7 @@ Locked 2026-07-07:
   standard exit codes).
 - **Flow Spec v1**: LOCKED decisions (YAML, dot-path wiring, `when:` branching,
   bounded concurrency, structured logging).
-- **Scaffold**: building & running. `axisflow` executes `af-echo` end-to-end
+- **Scaffold**: building & running. `kucur` executes `kc-echo` end-to-end
   (`examples/echo-demo.yaml`) with JSON piping between nodes.
 - **Schema validation**: pre-flight (binary discovery, manifest parse, required-input
   check) + runtime (JSON Schema validation via `jsonschema` crate). Fail-fast
@@ -79,8 +79,8 @@ Locked 2026-07-07:
 - **Structured logging**: `tracing` + `tracing-subscriber` with JSON output.
   Every flow & node run emits a structured span with timing, exit code, and
   diagnostics. One JSON log-line per event (Logstash/Elasticsearch friendly).
-- **`af-vault`**: credential storage binary that reads a JSON key-value file
-  (default `~/.axisflow/vault.json` or `AXISFLOW_VAULT_FILE`). Orchestrator
+- **`kc-vault`**: credential storage binary that reads a JSON key-value file
+  (default `~/.kucur/vault.json` or `KUCUR_VAULT_FILE`). Orchestrator
   resolves `vault://<key>` refs at runtime before spawning each node.
 
 ## Open questions (deferred)

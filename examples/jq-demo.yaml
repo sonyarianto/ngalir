@@ -1,6 +1,6 @@
 version: 1
 name: jq-demo
-description: "Extract a field from JSON using af-jq"
+description: "Extract a field from JSON using kc-jq"
 nodes:
   - id: src
     use: echo

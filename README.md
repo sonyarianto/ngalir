@@ -1,15 +1,15 @@
-# AxisFlow
+# Kucur
 
 n8n-like flow automation engine, built in Rust. Nodes are standalone CLI
-binaries (`af-*`); flows are declarative YAML DAGs executed by `axisflow`.
+binaries (`kc-*`); flows are declarative YAML DAGs executed by `kucur`.
 
 ## Install
 
 ```bash
-git clone https://github.com/your-org/axisflow.git
-cd axisflow
+git clone https://github.com/your-org/kucur.git
+cd kucur
 cargo build --release
-./target/release/axisflow --version
+./target/release/kucur --version
 ```
 
 ## Quick start
@@ -19,29 +19,29 @@ cargo build --release
 cargo build
 
 # See what nodes are available
-PATH=target/debug:$PATH ./target/debug/axisflow nodes
+PATH=target/debug:$PATH ./target/debug/kucur nodes
 
 # Run the echo demo
-PATH=target/debug:$PATH ./target/debug/axisflow run examples/echo-demo.yaml
+PATH=target/debug:$PATH ./target/debug/kucur run examples/echo-demo.yaml
 ```
 
 ## Concepts
 
 - **Flow Spec** — a YAML file describing a DAG of nodes. See `docs/flow-spec.md`.
-- **Node** — a standalone CLI binary named `af-<name>` that reads JSON on stdin
+- **Node** — a standalone CLI binary named `kc-<name>` that reads JSON on stdin
   and writes JSON on stdout. See `docs/node-contract.md`.
-- **Orchestrator** (`axisflow` binary) — validates & executes a Flow Spec,
+- **Orchestrator** (`kucur` binary) — validates & executes a Flow Spec,
   spawning node subprocesses in topological order with bounded concurrency.
 
 ## CLI
 
 ```
-axisflow <COMMAND>
+kucur <COMMAND>
 
 Commands:
-  run       Execute a Flow Spec        axisflow run flow.yaml
-  nodes     List all af-* on PATH      axisflow nodes
-  validate  Validate without running   axisflow validate flow.yaml
+  run       Execute a Flow Spec        kucur run flow.yaml
+  nodes     List all kc-* on PATH      kucur nodes
+  validate  Validate without running   kucur validate flow.yaml
   help      Print help
 ```
 
@@ -49,12 +49,12 @@ Commands:
 
 | Node | What |
 |---|---|
-| `af-echo` | Echo a message (reference / test node) |
-| `af-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
-| `af-jq` | JSON path extractor (dot-path syntax) |
-| `af-db` | PostgreSQL query execution |
-| `af-file` | File read / write |
-| `af-vault` | Credential storage (resolves `vault://` refs) |
+| `kc-echo` | Echo a message (reference / test node) |
+| `kc-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
+| `kc-jq` | JSON path extractor (dot-path syntax) |
+| `kc-db` | PostgreSQL query execution |
+| `kc-file` | File read / write |
+| `kc-vault` | Credential storage (resolves `vault://` refs) |
 
 ## Writing a flow
 
@@ -66,7 +66,7 @@ nodes:
   - id: a
     use: echo
     with:
-      message: "hello from AxisFlow"
+      message: "hello from Kucur"
   - id: b
     use: echo
     inputs:
@@ -74,13 +74,13 @@ nodes:
 ```
 
 ```bash
-axisflow run examples/echo-demo.yaml
+kucur run examples/echo-demo.yaml
 ```
 
 ## Secrets (vault)
 
-Write secrets to a JSON file (default `~/.axisflow/vault.json` or
-`AXISFLOW_VAULT_FILE`):
+Write secrets to a JSON file (default `~/.kucur/vault.json` or
+`KUCUR_VAULT_FILE`):
 
 ```json
 {
@@ -100,23 +100,23 @@ nodes:
       query: "SELECT * FROM users"
 ```
 
-The Orchestrator resolves `vault://` refs at runtime by calling `af-vault`.
+The Orchestrator resolves `vault://` refs at runtime by calling `kc-vault`.
 
 ## Building a custom node
 
 1. Implement the Node Contract: `--describe` (manifest), `--version`, and
    stdin/stdout JSON execution.
-2. Name your binary `af-<name>`.
-3. Put it on `PATH` or `AXISFLOW_NODE_PATH`.
+2. Name your binary `kc-<name>`.
+3. Put it on `PATH` or `KUCUR_NODE_PATH`.
 
-Minimal example: see `crates/af-echo/src/main.rs`.
+Minimal example: see `crates/kc-echo/src/main.rs`.
 
 ## Environment
 
 | Variable | Purpose |
 |---|---|
-| `AXISFLOW_NODE_PATH` | Colon-separated directories to search for `af-*` binaries |
-| `AXISFLOW_VAULT_FILE` | Path to vault JSON file (default `~/.axisflow/vault.json`) |
+| `KUCUR_NODE_PATH` | Colon-separated directories to search for `kc-*` binaries |
+| `KUCUR_VAULT_FILE` | Path to vault JSON file (default `~/.kucur/vault.json`) |
 
 ## Documentation
 
