@@ -19,3 +19,7 @@ anyhow = "1"
 jsonschema = "0.46.10"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
+
+[dev-dependencies]
+af-echo = { path = "../af-echo" }
+tempfile = "3.27.0"

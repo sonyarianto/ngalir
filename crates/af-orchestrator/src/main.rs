@@ -376,3 +376,156 @@ fn validate_input(input: &Value, schema: &Value, node_id: &str) -> Result<()> {
     }
     Ok(())
 }
+
+// ── Tests ──────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_upstream_of() {
+        assert_eq!(upstream_of("a.echo"), "a");
+        assert_eq!(upstream_of("src"), "src");
+        assert_eq!(upstream_of("db.rows.0.name"), "db");
+    }
+
+    #[test]
+    fn test_resolve_ref_full_object() {
+        let mut outputs = HashMap::new();
+        outputs.insert("src".into(), json!({"echo": "hello", "count": 3}));
+        assert_eq!(resolve_ref("src.echo", &outputs), json!("hello"));
+        assert_eq!(resolve_ref("src.count", &outputs), json!(3));
+    }
+
+    #[test]
+    fn test_resolve_ref_star() {
+        let mut outputs = HashMap::new();
+        outputs.insert("src".into(), json!({"echo": "hello"}));
+        assert_eq!(resolve_ref("src.*", &outputs), json!({"echo": "hello"}));
+    }
+
+    #[test]
+    fn test_resolve_ref_missing() {
+        let outputs = HashMap::new();
+        assert_eq!(resolve_ref("src.missing", &outputs), Value::Null);
+    }
+
+    #[test]
+    fn test_build_input_with_and_inputs() {
+        let mut outputs = HashMap::new();
+        outputs.insert("a".into(), json!({"echo": "world"}));
+        let node = NodeSpec {
+            id: "b".into(),
+            use_: "echo".into(),
+            with: json!({"greeting": "hi"}),
+            inputs: [("message".into(), "a.echo".into())].into(),
+            when: None,
+            on_error: None,
+        };
+        let input = build_input(&node, &outputs);
+        assert_eq!(input["greeting"], json!("hi"));
+        assert_eq!(input["message"], json!("world"));
+    }
+
+    #[test]
+    fn test_build_input_no_with() {
+        let mut outputs = HashMap::new();
+        outputs.insert("a".into(), json!({"num": 42}));
+        let node = NodeSpec {
+            id: "b".into(),
+            use_: "echo".into(),
+            with: Value::Null,
+            inputs: [("value".into(), "a.num".into())].into(),
+            when: None,
+            on_error: None,
+        };
+        let input = build_input(&node, &outputs);
+        assert_eq!(input["value"], json!(42));
+    }
+
+    #[test]
+    fn test_deps_satisfied_all_ready() {
+        let mut outputs = HashMap::new();
+        outputs.insert("a".into(), json!({}));
+        outputs.insert("b".into(), json!({}));
+        let node = NodeSpec {
+            id: "c".into(),
+            use_: "echo".into(),
+            with: json!({}),
+            inputs: [("x".into(), "a.echo".into()), ("y".into(), "b.echo".into())].into(),
+            when: None,
+            on_error: None,
+        };
+        assert!(deps_satisfied(&node, &outputs));
+    }
+
+    #[test]
+    fn test_deps_satisfied_missing() {
+        let mut outputs = HashMap::new();
+        outputs.insert("a".into(), json!({}));
+        let node = NodeSpec {
+            id: "c".into(),
+            use_: "echo".into(),
+            with: json!({}),
+            inputs: [("x".into(), "a.echo".into()), ("y".into(), "b.echo".into())].into(),
+            when: None,
+            on_error: None,
+        };
+        assert!(!deps_satisfied(&node, &outputs));
+    }
+
+    #[test]
+    fn test_deps_satisfied_no_inputs() {
+        let outputs = HashMap::new();
+        let node = NodeSpec {
+            id: "a".into(),
+            use_: "echo".into(),
+            with: json!({"message": "hi"}),
+            inputs: Default::default(),
+            when: None,
+            on_error: None,
+        };
+        assert!(deps_satisfied(&node, &outputs));
+    }
+
+    #[test]
+    fn test_validate_input_valid() {
+        let schema = json!({
+            "type": "object",
+            "properties": { "message": { "type": "string" } },
+            "required": ["message"]
+        });
+        let input = json!({"message": "hello"});
+        assert!(validate_input(&input, &schema, "test").is_ok());
+    }
+
+    #[test]
+    fn test_validate_input_wrong_type() {
+        let schema = json!({
+            "type": "object",
+            "properties": { "message": { "type": "string" } },
+            "required": ["message"]
+        });
+        let input = json!({"message": 42});
+        assert!(validate_input(&input, &schema, "test").is_err());
+    }
+
+    #[test]
+    fn test_validate_input_missing_required() {
+        let schema = json!({
+            "type": "object",
+            "properties": { "message": { "type": "string" } },
+            "required": ["message"]
+        });
+        let input = json!({});
+        assert!(validate_input(&input, &schema, "test").is_err());
+    }
+
+    #[test]
+    fn test_validate_input_no_schema() {
+        let input = json!({"anything": "goes"});
+        assert!(validate_input(&input, &Value::Null, "test").is_ok());
+    }
+}

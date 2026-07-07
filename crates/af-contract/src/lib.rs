@@ -72,3 +72,51 @@ pub fn read_input() -> Value {
         Err(e) => fail(exit_code::INVALID_INPUT, format!("invalid input JSON: {e}")),
     }
 }
+
+// ── Tests ──────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_manifest_roundtrip() {
+        let m = Manifest {
+            name: "af-test".into(),
+            version: "1.2.3".into(),
+            description: "test node".into(),
+            inputs: json!({"type": "object", "properties": {"x": {"type": "integer"}}}),
+            outputs: json!({"type": "string"}),
+            secrets: vec!["password".into()],
+            streaming: true,
+            idempotent: false,
+        };
+        let json = serde_json::to_string_pretty(&m).unwrap();
+        let m2: Manifest = serde_json::from_str(&json).unwrap();
+        assert_eq!(m.name, m2.name);
+        assert_eq!(m.version, m2.version);
+        assert_eq!(m.secrets, m2.secrets);
+        assert!(m2.streaming);
+        assert!(!m2.idempotent);
+    }
+
+    #[test]
+    fn test_manifest_defaults() {
+        let m: Manifest =
+            serde_json::from_str(r#"{"name":"af-x","version":"0.1.0","description":"d"}"#).unwrap();
+        assert!(m.inputs.is_null() || m.inputs == Value::Null);
+        assert!(m.outputs.is_null() || m.outputs == Value::Null);
+        assert!(m.secrets.is_empty());
+        assert!(!m.streaming);
+        assert!(!m.idempotent);
+    }
+
+    #[test]
+    fn test_exit_codes_are_distinct() {
+        assert_ne!(exit_code::SUCCESS, exit_code::GENERIC);
+        assert_ne!(exit_code::GENERIC, exit_code::RETRYABLE);
+        assert_ne!(exit_code::RETRYABLE, exit_code::AUTH);
+        assert_ne!(exit_code::AUTH, exit_code::INVALID_INPUT);
+    }
+}
