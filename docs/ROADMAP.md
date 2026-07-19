@@ -17,7 +17,7 @@ workflows, and scheduled batch jobs.
 - ✅ Cycle detection with DFS
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
-- ✅ 92 unit + integration tests across all crates
+- ✅ 146 unit + integration tests across all crates
 - ✅ 15 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
 - ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
@@ -34,7 +34,6 @@ workflows, and scheduled batch jobs.
 | No Docker images or container orchestration | Dockerfile + docker-compose + CI/CD pipeline ready |
 | No Prometheus metrics or health endpoints | /health + /metrics on webhook, schedule, orchestrator |
 | Large payloads held in memory | output_mode: file transports via temp files |
-| No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
 | No Web UI or AI workflow generation | Steep learning curve for non-devs |
 
@@ -133,15 +132,16 @@ Address the remaining gaps between MVP and production-ready system.
 - All existing nodes get `output_mode: None` (defaults to stdout transport)
 - `Manifest` deserialization backward-compatible (serde default for new field)
 
-### 4.5 Flow composition (subflows / includes)
+### 4.5 Flow composition (subflows / includes) ✅ (Complete)
 
-**Problem:** No way to reuse common flow patterns (e.g. "HTTP fetch → parse → store").
-
-**Target:**
-- `node.use: "@subflow.yaml"` syntax referencing external flow files
-- Subflow nodes expose typed inputs/outputs mapped to the subflow's entry/exit nodes
-- Validation: recursive schema check
-- Namespacing: subflow node outputs prefixed with node ID
+**Subflow inlining implemented:**
+- `node.use: "@subflow.yaml"` syntax — loads subflow YAML relative to parent flow
+- Node ID namespacing: `parent.subnode_id` prefixing prevents ID collisions
+- Input mapping: parent inputs mapped to subflow entry nodes by local ID
+- Exit node handling: `exit: true` nodes in subflow create passthrough echo nodes
+- Recursive expansion: nested subflows resolved depth-first
+- `check_cycles()` called after expansion on the flattened node list
+- Removed unused `is_subflow()` helper, added `exit: false` to all test fixtures
 
 **Effort:** 4-5 days.
 

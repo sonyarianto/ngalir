@@ -148,8 +148,101 @@ async fn metrics_handler() -> String {
 
 // ── Subcommands ────────────────────────────────────────────────────────────
 
+/// Resolve subflow references by inlining their nodes with prefixed IDs.
+fn expand_subflows(nodes: &[NodeSpec], base_dir: &std::path::Path) -> Result<Vec<NodeSpec>> {
+    let mut expanded = Vec::new();
+    for node in nodes {
+        if !node.use_.starts_with('@') {
+            expanded.push(node.clone());
+            continue;
+        }
+        let subflow_path = base_dir.join(&node.use_[1..]);
+        let subflow: FlowSpec = parse_flow(&subflow_path.to_string_lossy())?;
+        let prefix = format!("{}.", node.id);
+
+        let sub_node_ids: Vec<String> = subflow.nodes.iter().map(|n| n.id.clone()).collect();
+
+        let mut sub_nodes: Vec<NodeSpec> = subflow
+            .nodes
+            .into_iter()
+            .map(|mut n| {
+                n.id = format!("{}{}", prefix, n.id);
+                let inputs = std::mem::take(&mut n.inputs);
+                n.inputs = inputs
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let prefixed = if let Some(dot) = v.find('.') {
+                            let (up, field) = v.split_at(dot);
+                            if sub_node_ids.iter().any(|sid| sid == up) {
+                                format!("{}{}{}", prefix, up, field)
+                            } else {
+                                v
+                            }
+                        } else if sub_node_ids.iter().any(|sid| sid == &v) {
+                            format!("{}{}", prefix, v)
+                        } else {
+                            v
+                        };
+                        (k, prefixed)
+                    })
+                    .collect();
+                if let Some(w) = &n.when {
+                    let mut new_w = w.clone();
+                    for sn_id in &sub_node_ids {
+                        let old = format!("{{{{ {}", sn_id);
+                        let new = format!("{{{{ {}{}", prefix, sn_id);
+                        new_w = new_w.replace(&old, &new);
+                    }
+                    n.when = Some(new_w);
+                }
+                n
+            })
+            .collect();
+
+        // Map parent inputs to subflow entry nodes by local ID
+        for sub_node in &mut sub_nodes {
+            let local_id = sub_node.id.strip_prefix(&prefix).unwrap_or(&sub_node.id);
+            if let Some(parent_val) = node.inputs.get(local_id) {
+                if let Some(obj) = sub_node.with.as_object_mut() {
+                    obj.insert(
+                        local_id.to_string(),
+                        Value::String(format!("{{{{{}}}}}", parent_val)),
+                    );
+                }
+            }
+        }
+
+        let sub_dir = subflow_path.parent().unwrap_or(base_dir);
+        let sub_nodes = expand_subflows(&sub_nodes, sub_dir)?;
+
+        let exit_ids: Vec<String> = sub_nodes
+            .iter()
+            .filter(|n| n.exit)
+            .map(|n| n.id.clone())
+            .collect();
+
+        if let Some(last_exit) = exit_ids.last() {
+            expanded.push(NodeSpec {
+                id: node.id.clone(),
+                use_: "echo".to_string(),
+                with: json!({"message": ""}),
+                inputs: [("message".into(), format!("{}.echo", last_exit))].into(),
+                when: None,
+                on_error: None,
+                exit: false,
+            });
+        }
+
+        expanded.extend(sub_nodes);
+    }
+    Ok(expanded)
+}
+
 async fn cmd_run(path: &str, state_dir: Option<String>, input_json: Option<String>) -> Result<()> {
-    let flow: FlowSpec = parse_flow(path)?;
+    let flow_path = std::path::Path::new(path);
+    let base_dir = flow_path.parent().unwrap_or(std::path::Path::new("."));
+    let mut flow: FlowSpec = parse_flow(path)?;
+    flow.nodes = expand_subflows(&flow.nodes, base_dir)?;
     check_cycles(&flow.nodes)?;
     let node_bins = preflight(&flow).await?;
     let mut store = match state_dir {
@@ -177,7 +270,10 @@ async fn cmd_run(path: &str, state_dir: Option<String>, input_json: Option<Strin
 }
 
 async fn cmd_validate(path: &str) -> Result<()> {
-    let flow: FlowSpec = parse_flow(path)?;
+    let flow_path = std::path::Path::new(path);
+    let base_dir = flow_path.parent().unwrap_or(std::path::Path::new("."));
+    let mut flow: FlowSpec = parse_flow(path)?;
+    flow.nodes = expand_subflows(&flow.nodes, base_dir)?;
     check_cycles(&flow.nodes)?;
     let bins = preflight(&flow).await?;
     println!("Flow '{}' is valid.", flow.name);
@@ -249,6 +345,9 @@ struct NodeSpec {
     when: Option<String>,
     #[serde(default)]
     on_error: Option<String>,
+    /// If true, this node is a subflow exit point (its output becomes the subflow's output).
+    #[serde(default)]
+    exit: bool,
 }
 
 fn parse_flow(path: &str) -> Result<FlowSpec> {
@@ -1139,6 +1238,7 @@ mod tests {
             inputs: [("message".into(), "a.echo".into())].into(),
             when: None,
             on_error: None,
+            exit: false,
         };
         let input = build_input(&node, &outputs);
         assert_eq!(input["greeting"], json!("hi"));
@@ -1156,6 +1256,7 @@ mod tests {
             inputs: [("value".into(), "a.num".into())].into(),
             when: None,
             on_error: None,
+            exit: false,
         };
         let input = build_input(&node, &outputs);
         assert_eq!(input["value"], json!(42));
@@ -1173,6 +1274,7 @@ mod tests {
             inputs: [("x".into(), "a.echo".into()), ("y".into(), "b.echo".into())].into(),
             when: None,
             on_error: None,
+            exit: false,
         };
         assert!(deps_satisfied(&node, &outputs));
     }
@@ -1188,6 +1290,7 @@ mod tests {
             inputs: [("x".into(), "a.echo".into()), ("y".into(), "b.echo".into())].into(),
             when: None,
             on_error: None,
+            exit: false,
         };
         assert!(!deps_satisfied(&node, &outputs));
     }
@@ -1202,6 +1305,7 @@ mod tests {
             inputs: Default::default(),
             when: None,
             on_error: None,
+            exit: false,
         };
         assert!(deps_satisfied(&node, &outputs));
     }
@@ -1307,6 +1411,7 @@ mod tests {
             inputs: Default::default(),
             when: Some("{{ src.count > 5 }}".into()),
             on_error: None,
+            exit: false,
         };
         assert!(deps_satisfied(&node, &outputs));
     }
@@ -1321,6 +1426,7 @@ mod tests {
             inputs: Default::default(),
             when: Some("{{ src.count > 5 }}".into()),
             on_error: None,
+            exit: false,
         };
         assert!(!deps_satisfied(&node, &outputs));
     }
