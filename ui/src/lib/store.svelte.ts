@@ -1,8 +1,10 @@
+import dagre from 'dagre'
 import { type CanvasNode, type Wire } from './types'
 
 let nodes = $state<CanvasNode[]>([])
 let wires = $state<Wire[]>([])
 let selectedId = $state<string | null>(null)
+let selectedWireId = $state<string | null>(null)
 let flowName = $state('untitled')
 let filename = $state('')
 let running = $state(false)
@@ -13,6 +15,62 @@ let savedFlows = $state<{ name: string; modified: string }[]>([])
 let showFlowList = $state(false)
 let draggingWire = $state<{ fromNodeId: string; fromPort: string; mouseX: number; mouseY: number } | null>(null)
 let ws: WebSocket | null = $state(null)
+let panX = $state(0)
+let panY = $state(0)
+let zoom = $state(1)
+type Snapshot = { nodes: CanvasNode[]; wires: Wire[] }
+let undoStack = $state<Snapshot[]>([])
+let redoStack = $state<Snapshot[]>([])
+
+function snapshot(): Snapshot {
+  return {
+    nodes: JSON.parse(JSON.stringify(nodes)),
+    wires: JSON.parse(JSON.stringify(wires)),
+  }
+}
+
+function pushUndo() {
+  undoStack = [...undoStack.slice(-49), snapshot()]
+  redoStack = []
+}
+
+function undo() {
+  if (undoStack.length === 0) return
+  redoStack = [...redoStack, snapshot()]
+  const prev = undoStack[undoStack.length - 1]
+  undoStack = undoStack.slice(0, -1)
+  nodes = JSON.parse(JSON.stringify(prev.nodes))
+  wires = JSON.parse(JSON.stringify(prev.wires))
+  selectedId = null
+  selectedWireId = null
+}
+
+function redo() {
+  if (redoStack.length === 0) return
+  undoStack = [...undoStack, snapshot()]
+  const next = redoStack[redoStack.length - 1]
+  redoStack = redoStack.slice(0, -1)
+  nodes = JSON.parse(JSON.stringify(next.nodes))
+  wires = JSON.parse(JSON.stringify(next.wires))
+  selectedId = null
+  selectedWireId = null
+}
+
+function setPan(x: number, y: number) {
+  panX = x; panY = y
+}
+
+function setZoom(z: number) {
+  zoom = Math.max(0.1, Math.min(3, z))
+}
+
+function selectWire(id: string | null) {
+  selectedWireId = id
+  if (id) {
+    for (const n of nodes) n.selected = false
+    selectedId = null
+  }
+}
 
 function connectWs() {
   if (ws?.readyState === WebSocket.OPEN) return
@@ -172,6 +230,7 @@ async function listFlows() {
 }
 
 function addNode(type: string, position: { x: number; y: number }) {
+  pushUndo()
   const id = `${type}-${nodes.length + 1}`
   nodes.push({
     id,
@@ -185,6 +244,7 @@ function addNode(type: string, position: { x: number; y: number }) {
 }
 
 function removeNode(id: string) {
+  pushUndo()
   nodes = nodes.filter((n) => n.id !== id)
   wires = wires.filter((w) => w.from.nodeId !== id && w.to.nodeId !== id)
   if (selectedId === id) selectedId = null
@@ -193,6 +253,7 @@ function removeNode(id: string) {
 function selectNode(id: string | null) {
   for (const n of nodes) n.selected = n.id === id
   selectedId = id
+  if (id) selectedWireId = null
 }
 
 function updateNodePosition(id: string, position: { x: number; y: number }) {
@@ -209,7 +270,7 @@ function updateNodeProp(id: string, key: string, value: unknown) {
 }
 
 function addWire(wire: Wire) {
-  // Update target node's inputs
+  pushUndo()
   const target = nodes.find((n) => n.id === wire.to.nodeId)
   if (target) {
     if (!target.inputs) target.inputs = {}
@@ -219,6 +280,7 @@ function addWire(wire: Wire) {
 }
 
 function removeWire(id: string) {
+  pushUndo()
   const wire = wires.find((w) => w.id === id)
   if (wire) {
     const target = nodes.find((n) => n.id === wire.to.nodeId)
@@ -227,6 +289,7 @@ function removeWire(id: string) {
     }
   }
   wires = wires.filter((w) => w.id !== id)
+  if (selectedWireId === id) selectedWireId = null
 }
 
 function startDragWire(fromNodeId: string, fromPort: string, mouseX: number, mouseY: number) {
@@ -269,6 +332,7 @@ function exportFlow(): string {
 
 function importFlow(text: string) {
   try {
+    pushUndo()
     const flow = JSON.parse(text)
     flowName = flow.name || 'untitled'
     nodes = (flow.nodes || []).map((n: CanvasNode, i: number) => ({
@@ -278,12 +342,14 @@ function importFlow(text: string) {
       inputs: n.inputs || {},
     }))
     wires = []
+    selectedWireId = null
   } catch {
     alert('Invalid flow JSON')
   }
 }
 
 function loadSample() {
+  pushUndo()
   flowName = 'etl-demo'
   nodes = [
     { id: 'src', use: 'db-postgres', with: { connection: 'vault://db/prod', query: 'SELECT * FROM orders' }, inputs: {}, position: { x: 60, y: 80 } },
@@ -294,6 +360,21 @@ function loadSample() {
     { id: 'w1', from: { nodeId: 'src', port: 'rows', label: 'rows', type: 'output' }, to: { nodeId: 'transform', port: 'data', label: 'data', type: 'input' } },
     { id: 'w2', from: { nodeId: 'transform', port: 'result', label: 'result', type: 'output' }, to: { nodeId: 'notify', port: 'body', label: 'body', type: 'input' } },
   ]
+  selectedWireId = null
+}
+
+function autoLayout() {
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'LR', nodesep: 60, ranksep: 120, marginx: 40, marginy: 40 })
+  for (const n of nodes) g.setNode(n.id, { width: 160, height: 100 })
+  for (const w of wires) g.setEdge(w.from.nodeId, w.to.nodeId)
+  dagre.layout(g)
+  pushUndo()
+  for (const n of nodes) {
+    const dag = g.node(n.id)
+    if (dag) n.position = { x: dag.x - 80, y: dag.y - 50 }
+  }
 }
 
 export function getStore() {
@@ -301,6 +382,7 @@ export function getStore() {
     get nodes() { return nodes },
     get wires() { return wires },
     get selectedId() { return selectedId },
+    get selectedWireId() { return selectedWireId },
     get flowName() { return flowName },
     get filename() { return filename },
     get running() { return running },
@@ -309,12 +391,16 @@ export function getStore() {
     get savedFlows() { return savedFlows },
     get showFlowList() { return showFlowList },
     get draggingWire() { return draggingWire },
+    get panX() { return panX },
+    get panY() { return panY },
+    get zoom() { return zoom },
     set flowName(v: string) { flowName = v },
     set filename(v: string) { filename = v },
     set showFlowList(v: boolean) { showFlowList = v },
     addNode,
     removeNode,
     selectNode,
+    selectWire,
     updateNodePosition,
     updateNodeProp,
     addWire,
@@ -322,6 +408,12 @@ export function getStore() {
     startDragWire,
     updateDragWire,
     endDragWire,
+    setPan,
+    setZoom,
+    undo,
+    redo,
+    pushUndo,
+    autoLayout,
     exportFlow,
     importFlow,
     loadSample,

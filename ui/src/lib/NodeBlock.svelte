@@ -43,6 +43,7 @@
   }
 
   function handleMouseUp() {
+    if (dragging) store.pushUndo()
     dragging = false
   }
 
@@ -64,6 +65,7 @@
 
 <div
   bind:this={el}
+  data-node-id={node.id}
   class="absolute min-w-40 bg-[#1a1a32] border rounded-lg cursor-move text-xs z-10 select-none"
   class:border-[#7c3aed]!={node.selected}
   class:shadow-[0_0_8px_rgba(124,58,237,0.4)]={node.selected}
