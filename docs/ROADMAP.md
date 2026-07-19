@@ -28,6 +28,7 @@ workflows, and scheduled batch jobs.
 - ✅ Trigger nodes: webhook (HTTP server), schedule (cron daemon), email (SMTP)
 - ✅ Per-provider DB split (postgres / mysql / sqlite)
 - ✅ Web UI: Svelte 5 flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, snapshot comparison
+- ✅ Canvas UX: wire management (click/delete), zoom & pan, auto-layout (dagre), undo/redo (50-step), keyboard shortcuts
 
 **What could be improved:**
 
@@ -247,6 +248,29 @@ running the full pipeline.
 - `ngalir optimize <flow>` CLI command: analyzes flow, runs AI (na-llm) for optimization suggestions
 - `estimate_node_cost()` heuristic per node type (llm=80, db=30, http=20, etc.)
 - Auto-retry detection: flags idempotent nodes missing `on_error`, vault users without retry
+
+### 6.6 Canvas UX & Productivity ✅ (Complete)
+
+**Problem:** The UI flow editor lacked essential canvas interactions — no way to delete wires, zoom/pan, auto-layout, undo/redo, or keyboard shortcuts.
+
+**Target:**
+- Wire management: click-to-select, delete wires, auto-cleanup on node delete
+- Canvas zoom & pan: scroll wheel zoom centered on cursor, middle-click/ctrl-drag to pan
+- Auto-layout: dagre-based algorithm arranges nodes topologically
+- Undo/redo: 50-deep history stack with keyboard shortcuts and toolbar buttons
+- Keyboard shortcuts: Delete/Backspace (remove), Escape (deselect), Ctrl+S (save), Ctrl+Z/Y (undo/redo)
+
+**Effort:** 1-2 days. ✅
+
+**Implemented:**
+- Wires are clickable via transparent SVG hit paths (stroke-width 14); selected wires glow with purple shadow and thicker stroke
+- Drag from output port creates bezier wire; drop on input port completes connection; drop on empty space cancels
+- `selectedWireId` state + selectWire/removeWire functions with undo support
+- `panX`, `panY`, `zoom` state with CSS transform on canvas content container
+- `screenToCanvas()` coordinate conversion for node dragging and wire creation at any zoom level
+- Dagre layout: `autoLayout()` computes left-to-right positions from wire topology; Layout button in toolbar
+- Undo/redo: `snapshot()` deep-copies nodes/wires; `pushUndo()` before each mutation; 50-entry stack with Ctrl+Z/Y or ↩/↪ buttons
+- Keyboard handler on `<svelte:window>` covers Delete, Escape, Ctrl+S, Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y
 
 ---
 
