@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/kc-contract",
-    "crates/kc-db",
-    "crates/kc-echo",
-    "crates/kc-file",
-    "crates/kc-http",
-    "crates/kc-jq",
-    "crates/kc-orchestrator",
-    "crates/kc-vault",
+    "crates/na-contract",
+    "crates/na-db",
+    "crates/na-echo",
+    "crates/na-file",
+    "crates/na-http",
+    "crates/na-jq",
+    "crates/na-orchestrator",
+    "crates/na-vault",
 ]
 
 [workspace.package]

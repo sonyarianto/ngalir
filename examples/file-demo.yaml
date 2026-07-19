@@ -6,10 +6,10 @@ nodes:
     use: file
     with:
       action: write
-      path: /tmp/kucur-demo.txt
-      content: "hello from Kucur"
+      path: /tmp/ngalir-demo.txt
+      content: "hello from Ngalir"
   - id: reader
     use: file
     with:
       action: read
-      path: /tmp/kucur-demo.txt
+      path: /tmp/ngalir-demo.txt

@@ -1,16 +1,16 @@
 # Node Contract
 
-Every Kucur node is a standalone Rust binary named `kc-<name>` (e.g.
-`kc-data`, `kc-vault`, `kc-http`, `kc-llm`). All nodes share one uniform
+Every Ngalir node is a standalone Rust binary named `na-<name>` (e.g.
+`na-data`, `na-vault`, `na-http`, `na-llm`). All nodes share one uniform
 interface so the Orchestrator can treat every node generically.
 
 ## 1. Modes (subcommands)
 
 | Invocation            | Purpose                                                              |
 |-----------------------|----------------------------------------------------------------------|
-| `kc-data` / `run`     | Execute the node. Reads input JSON, writes output JSON/NDJSON.       |
-| `kc-data --describe`  | Print the **capability manifest** (JSON) for discovery & validation. |
-| `kc-data --version`   | Print version string (semver).                                       |
+| `na-data` / `run`     | Execute the node. Reads input JSON, writes output JSON/NDJSON.       |
+| `na-data --describe`  | Print the **capability manifest** (JSON) for discovery & validation. |
+| `na-data --version`   | Print version string (semver).                                       |
 
 The manifest is the single source of truth the Orchestrator uses to discover
 node capabilities and validate a Flow Spec before running.
@@ -19,7 +19,7 @@ node capabilities and validate a Flow Spec before running.
 
 ```json
 {
-  "name": "kc-data",
+  "name": "na-data",
   "version": "0.1.0",
   "description": "Query relational databases",
   "inputs": {
@@ -45,7 +45,7 @@ node capabilities and validate a Flow Spec before running.
 
 Fields:
 - `inputs` / `outputs` — JSON Schema describing the node's data contract.
-- `secrets` — list of input names that are credentials; resolved via `kc-vault`
+- `secrets` — list of input names that are credentials; resolved via `na-vault`
   and injected into the environment, never passed as `argv`.
 - `streaming` — if `true`, output is NDJSON (one JSON object per line).
 - `idempotent` — hints the Orchestrator whether safe to retry on failure.
@@ -68,16 +68,16 @@ Fields:
 | 0    | success                | continue                     |
 | 1    | generic error          | stop / mark flow failed      |
 | 2    | retryable (transient)  | retry with backoff           |
-| 3    | auth / credential      | resolve via `kc-vault`, retry|
+| 3    | auth / credential      | resolve via `na-vault`, retry|
 | 4    | invalid input / schema | fail fast                    |
 | 10+  | domain-specific errors | node-defined                 |
 
-## 4. Credential Layer (`kc-vault`)
+## 4. Credential Layer (`na-vault`)
 
 - A node declares secret inputs via `secrets` in its manifest.
-- The Orchestrator asks `kc-vault` to resolve each `vault://...` reference and
+- The Orchestrator asks `na-vault` to resolve each `vault://...` reference and
   injects the value into the child process environment as
-  `KUCUR_SECRET_<NAME>`.
+  `NGALIR_SECRET_<NAME>`.
 - Nodes read secrets from env, never from `argv` or the input JSON body.
 - This keeps secrets out of process listings, logs, and the Flow Spec file.
 
@@ -90,7 +90,7 @@ injected via env, instead of buffering in memory.
 
 ## Open questions for this layer
 
-- **A. Subprocess vs plugin**: spawn `kc-*` as a child process (simple,
+- **A. Subprocess vs plugin**: spawn `na-*` as a child process (simple,
   isolated, matches the vision) vs compile nodes as wasm/Rust plugins (faster,
   no spawn overhead, but more complex tooling). Proposal: subprocess by
   default, plugin as an optional optimization later.

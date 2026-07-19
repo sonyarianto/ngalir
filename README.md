@@ -1,15 +1,15 @@
-# Kucur
+# Ngalir
 
 n8n-like flow automation engine, built in Rust. Nodes are standalone CLI
-binaries (`kc-*`); flows are declarative YAML DAGs executed by `kucur`.
+binaries (`na-*`); flows are declarative YAML DAGs executed by `ngalir`.
 
 ## Install
 
 ```bash
-git clone https://github.com/your-org/kucur.git
-cd kucur
+git clone https://github.com/your-org/ngalir.git
+cd ngalir
 cargo build --release
-./target/release/kucur --version
+./target/release/ngalir --version
 ```
 
 ## Quick start
@@ -19,29 +19,29 @@ cargo build --release
 cargo build
 
 # See what nodes are available
-PATH=target/debug:$PATH ./target/debug/kucur nodes
+PATH=target/debug:$PATH ./target/debug/ngalir nodes
 
 # Run the echo demo
-PATH=target/debug:$PATH ./target/debug/kucur run examples/echo-demo.yaml
+PATH=target/debug:$PATH ./target/debug/ngalir run examples/echo-demo.yaml
 ```
 
 ## Concepts
 
 - **Flow Spec** — a YAML file describing a DAG of nodes. See `docs/flow-spec.md`.
-- **Node** — a standalone CLI binary named `kc-<name>` that reads JSON on stdin
+- **Node** — a standalone CLI binary named `na-<name>` that reads JSON on stdin
   and writes JSON on stdout. See `docs/node-contract.md`.
-- **Orchestrator** (`kucur` binary) — validates & executes a Flow Spec,
+- **Orchestrator** (`ngalir` binary) — validates & executes a Flow Spec,
   spawning node subprocesses in topological order with bounded concurrency.
 
 ## CLI
 
 ```
-kucur <COMMAND>
+ngalir <COMMAND>
 
 Commands:
-  run       Execute a Flow Spec        kucur run flow.yaml
-  nodes     List all kc-* on PATH      kucur nodes
-  validate  Validate without running   kucur validate flow.yaml
+  run       Execute a Flow Spec        ngalir run flow.yaml
+  nodes     List all na-* on PATH      ngalir nodes
+  validate  Validate without running   ngalir validate flow.yaml
   help      Print help
 ```
 
@@ -49,12 +49,12 @@ Commands:
 
 | Node | What |
 |---|---|
-| `kc-echo` | Echo a message (reference / test node) |
-| `kc-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
-| `kc-jq` | JSON path extractor (dot-path syntax) |
-| `kc-db` | PostgreSQL query execution |
-| `kc-file` | File read / write |
-| `kc-vault` | Credential storage (resolves `vault://` refs) |
+| `na-echo` | Echo a message (reference / test node) |
+| `na-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
+| `na-jq` | JSON path extractor (dot-path syntax) |
+| `na-db` | PostgreSQL query execution |
+| `na-file` | File read / write |
+| `na-vault` | Credential storage (resolves `vault://` refs) |
 
 ## Writing a flow
 
@@ -66,7 +66,7 @@ nodes:
   - id: a
     use: echo
     with:
-      message: "hello from Kucur"
+      message: "hello from Ngalir"
   - id: b
     use: echo
     inputs:
@@ -74,13 +74,13 @@ nodes:
 ```
 
 ```bash
-kucur run examples/echo-demo.yaml
+ngalir run examples/echo-demo.yaml
 ```
 
 ## Secrets (vault)
 
-Write secrets to a JSON file (default `~/.kucur/vault.json` or
-`KUCUR_VAULT_FILE`):
+Write secrets to a JSON file (default `~/.ngalir/vault.json` or
+`NGALIR_VAULT_FILE`):
 
 ```json
 {
@@ -100,23 +100,23 @@ nodes:
       query: "SELECT * FROM users"
 ```
 
-The Orchestrator resolves `vault://` refs at runtime by calling `kc-vault`.
+The Orchestrator resolves `vault://` refs at runtime by calling `na-vault`.
 
 ## Building a custom node
 
 1. Implement the Node Contract: `--describe` (manifest), `--version`, and
    stdin/stdout JSON execution.
-2. Name your binary `kc-<name>`.
-3. Put it on `PATH` or `KUCUR_NODE_PATH`.
+2. Name your binary `na-<name>`.
+3. Put it on `PATH` or `NGALIR_NODE_PATH`.
 
-Minimal example: see `crates/kc-echo/src/main.rs`.
+Minimal example: see `crates/na-echo/src/main.rs`.
 
 ## Environment
 
 | Variable | Purpose |
 |---|---|
-| `KUCUR_NODE_PATH` | Colon-separated directories to search for `kc-*` binaries |
-| `KUCUR_VAULT_FILE` | Path to vault JSON file (default `~/.kucur/vault.json`) |
+| `NGALIR_NODE_PATH` | Colon-separated directories to search for `na-*` binaries |
+| `NGALIR_VAULT_FILE` | Path to vault JSON file (default `~/.ngalir/vault.json`) |
 
 ## Documentation
 

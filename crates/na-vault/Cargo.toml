@@ -1,0 +1,10 @@
+[package]
+name = "na-vault"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir credential storage. Resolves vault:// refs to secret values."
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"

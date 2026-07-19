@@ -1,0 +1,10 @@
+[package]
+name = "na-echo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Sample Ngalir node: echoes its input `message` back as `echo`."
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"

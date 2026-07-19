@@ -1,0 +1,12 @@
+[package]
+name = "na-http"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: HTTP client (GET/POST/PUT/DELETE)."
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+reqwest = { version = "0.13", features = ["json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

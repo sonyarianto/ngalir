@@ -6,7 +6,7 @@ nodes:
   - id: a
     use: echo
     with:
-      message: "hello from Kucur"
+      message: "hello from Ngalir"
   - id: b
     use: echo
     inputs:

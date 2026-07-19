@@ -1,6 +1,6 @@
 version: 1
 name: echo-vault-demo
-description: "Resolves vault://api_key before passing to kc-echo"
+description: "Resolves vault://api_key before passing to na-echo"
 nodes:
   - id: a
     use: echo

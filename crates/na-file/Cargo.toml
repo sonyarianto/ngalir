@@ -1,0 +1,10 @@
+[package]
+name = "na-file"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: read / write local files."
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"

@@ -1167,84 +1167,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kc-contract"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "kc-db"
-version = "0.1.0"
-dependencies = [
- "kc-contract",
- "serde_json",
- "sqlx",
- "tokio",
-]
-
-[[package]]
-name = "kc-echo"
-version = "0.1.0"
-dependencies = [
- "kc-contract",
- "serde_json",
-]
-
-[[package]]
-name = "kc-file"
-version = "0.1.0"
-dependencies = [
- "kc-contract",
- "serde_json",
-]
-
-[[package]]
-name = "kc-http"
-version = "0.1.0"
-dependencies = [
- "kc-contract",
- "reqwest",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "kc-jq"
-version = "0.1.0"
-dependencies = [
- "kc-contract",
- "serde_json",
-]
-
-[[package]]
-name = "kc-orchestrator"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "jsonschema",
- "kc-contract",
- "kc-echo",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "kc-vault"
-version = "0.1.0"
-dependencies = [
- "kc-contract",
- "serde_json",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1357,6 +1279,84 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "na-contract"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "na-db"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "serde_json",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "na-echo"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "na-file"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "na-http"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "na-jq"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "serde_json",
+]
+
+[[package]]
+name = "na-orchestrator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "jsonschema",
+ "na-contract",
+ "na-echo",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "na-vault"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "serde_json",
 ]
 
 [[package]]
