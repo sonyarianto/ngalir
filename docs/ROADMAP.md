@@ -19,6 +19,7 @@ workflows, and scheduled batch jobs.
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 92 unit + integration tests across all crates
 - ✅ 17 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets
+- ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
@@ -36,6 +37,7 @@ workflows, and scheduled batch jobs.
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
 | No `na-llm` node | Requested by early users |
+| No Web UI or AI workflow generation | Steep learning curve for non-devs |
 
 ---
 
@@ -156,7 +158,86 @@ downstream nodes. Files > 100MB cause OOM.
 
 ---
 
-## Phase 5: Data Processing (Weeks 6-8)
+## Phase 6: AI-Native Workflow Studio (Weeks 8-12)
+
+This phase transforms Ngalir from a DAG workflow engine into an **AI-native
+workflow studio** where users describe what they want in natural language and
+the system generates, visualizes, and runs the workflow.
+
+### 6.1 Node Skills Registry
+
+**Problem:** Each node has a `Manifest` (name, description, input/output schema)
+but no structured metadata that an LLM can reason about when composing flows.
+
+**Target:**
+- Extend Manifest with `use_cases: Vec<String>` (tags like `["csv", "etl", "import"]`)
+- Add `examples: Vec<{input, output}>` — sample JSON pairs showing typical usage
+- Add `see_also: Vec<String>` — related node names (e.g. csv → excel, google-sheets)
+- Ship a `ngalir skills` CLI command that outputs the full skills registry as JSON
+- The registry becomes the context prompt for AI flow generation
+
+**Effort:** 1-2 days.
+
+### 6.2 AI Flow Generator
+
+**Problem:** Users must manually write YAML flows. A natural-language interface
+would lower the barrier dramatically.
+
+**Target:**
+- New `ngalir generate` command: takes a natural language prompt, outputs a `.yaml` flow
+- Uses `na-llm` internally (or configurable LLM provider via env var)
+- Context: the Node Skills Registry (6.1) is injected as system prompt
+- Iterative refinement: `ngalir generate --edit prompt2` amends an existing flow
+- Output can be piped directly into `ngalir run --flow -`
+
+**Example:**
+```
+ngalir generate "download orders.csv from SFTP, filter rows where amount > 100, email summary to ops@example.com"
+```
+
+**Effort:** 3-4 days.
+
+### 6.3 Web UI (Flow Editor)
+
+**Problem:** No visual interface for building or monitoring workflows.
+
+**Target:**
+- Standalone web app (React / Svelte) served by `ngalir serve` (or separate `ngalir-ui` binary)
+- Graph editor: drag-and-drop nodes, connect inputs/outputs visually
+- Real-time flow execution view: node status (pending/running/done/failed), logs
+- Flow library: save, load, share flows
+- Authentication: optional basic auth or OAuth2 proxy
+- Communication: WebSocket for live updates, REST API for CRUD
+
+**Effort:** 2-3 weeks.
+
+### 6.4 Flow Preview & Debug
+
+**Problem:** Users write flows but can't inspect intermediate data without
+running the full pipeline.
+
+**Target:**
+- Inline preview: select a node, run it with sample input, see output inline
+- Step-through mode: execute flow one node at a time, inspect outputs
+- Snapshot comparison: run flow on two different inputs, diff the results
+- Integrates with Web UI (6.3) for visual debugging
+
+**Effort:** 4-5 days.
+
+### 6.5 AI-Powered Flow Optimization
+
+**Problem:** Users build flows that work but may be inefficient or suboptimal.
+
+**Target:**
+- `ngalir optimize flow.yaml` — AI suggests improvements (parallelism, caching, node choice)
+- Cost estimation: estimate API costs for flows using `na-http`, `na-llm`, `na-google-sheets`
+- Automatic retry configuration: AI sets sensible retry policies based on node types
+
+**Effort:** 3-5 days.
+
+---
+
+## Phase 5: Data Processing (Weeks 6-8) ✅ (Complete)
 
 Ngalir handles JSON between nodes but can't process the three most common
 business data formats: **CSV**, **Excel (.xlsx)**, and **Google Sheets**.
