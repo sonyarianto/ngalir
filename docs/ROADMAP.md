@@ -12,13 +12,14 @@ workflows, and scheduled batch jobs.
 - ✅ Node discovery via `PATH` / `NGALIR_NODE_PATH`
 - ✅ Pre-flight validation (required inputs, JSON Schema)
 - ✅ Vault secret resolution & env-var injection
-- ✅ CLI: `run` (with `--input`, `--state-dir`), `nodes`, `validate`
+- ✅ CLI: `run` (with `--input`, `--state-dir`), `nodes`, `validate`, `generate`, `optimize`, `skills`, `serve`
 - ✅ Structured logging (tracing, JSON, stderr)
 - ✅ Cycle detection with DFS
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 146 unit + integration tests across all crates
 - ✅ `ngalir generate` — AI flow generation from natural language prompts
+- ✅ `ngalir optimize` — AI flow optimization with cost estimation and retry suggestions
 - ✅ 15 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
 - ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
@@ -26,6 +27,7 @@ workflows, and scheduled batch jobs.
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
 - ✅ Trigger nodes: webhook (HTTP server), schedule (cron daemon), email (SMTP)
 - ✅ Per-provider DB split (postgres / mysql / sqlite)
+- ✅ Web UI: Svelte 5 flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, snapshot comparison
 
 **What could be improved:**
 
@@ -189,21 +191,29 @@ the system generates, visualizes, and runs the workflow.
 
 **Effort:** 3-4 days. ✅
 
-### 6.3 Web UI (Flow Editor)
+### 6.3 Web UI (Flow Editor) ✅ (Complete)
 
 **Problem:** No visual interface for building or monitoring workflows.
 
 **Target:**
-- Standalone web app (React / Svelte) served by `ngalir serve` (or separate `ngalir-ui` binary)
+- Standalone web app (Svelte 5 + Vite) served by `ngalir serve` (default :8080)
 - Graph editor: drag-and-drop nodes, connect inputs/outputs visually
 - Real-time flow execution view: node status (pending/running/done/failed), logs
 - Flow library: save, load, share flows
-- Authentication: optional basic auth or OAuth2 proxy
-- Communication: WebSocket for live updates, REST API for CRUD
+- Communication: WebSocket for live updates, REST API for CRUD (nodes, skills, run, snapshots)
 
-**Effort:** 2-3 weeks.
+**Effort:** 2-3 weeks. ✅
 
-### 6.4 Flow Preview & Debug
+**Implemented:**
+- Svelte 5 + Vite + TypeScript + Tailwind CSS v4 scaffolded in `ui/`
+- Flow editor: Toolbar, NodePalette, FlowCanvas, NodeBlock, PropertyPanel
+- Drag & drop nodes, selection, property editing, export/import flow JSON
+- Run / Step buttons with real-time status dots via WebSocket
+- Node preview panel (input/output/error)
+- Step-through execution with Continue/Stop controls
+- Snapshots API for comparing flow runs
+
+### 6.4 Flow Preview & Debug ✅ (Complete)
 
 **Problem:** Users write flows but can't inspect intermediate data without
 running the full pipeline.
@@ -214,9 +224,15 @@ running the full pipeline.
 - Snapshot comparison: run flow on two different inputs, diff the results
 - Integrates with Web UI (6.3) for visual debugging
 
-**Effort:** 4-5 days.
+**Effort:** 4-5 days. ✅
 
-### 6.5 AI-Powered Flow Optimization
+**Implemented:**
+- Step-through execution: `step: true` on POST `/api/run`, StepCommand via WS (`continue`/`stop`), waits between batches
+- Node preview: PropertyPanel shows input/output/error per node, `node_input_ready` event emitted before node runs
+- Snapshot diffing: in-memory snapshot store, `/api/snapshots` lists runs, `/api/snapshots/diff?from=0&to=1` compares node outputs
+- UI: Step button + Continue/Stop controls in Toolbar
+
+### 6.5 AI-Powered Flow Optimization ✅ (Complete)
 
 **Problem:** Users build flows that work but may be inefficient or suboptimal.
 
@@ -225,7 +241,12 @@ running the full pipeline.
 - Cost estimation: estimate API costs for flows using `na-http`, `na-llm`, `na-google-sheets`
 - Automatic retry configuration: AI sets sensible retry policies based on node types
 
-**Effort:** 3-5 days.
+**Effort:** 3-5 days. ✅
+
+**Implemented:**
+- `ngalir optimize <flow>` CLI command: analyzes flow, runs AI (na-llm) for optimization suggestions
+- `estimate_node_cost()` heuristic per node type (llm=80, db=30, http=20, etc.)
+- Auto-retry detection: flags idempotent nodes missing `on_error`, vault users without retry
 
 ---
 
