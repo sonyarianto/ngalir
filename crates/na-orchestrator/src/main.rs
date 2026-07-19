@@ -8,6 +8,7 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use na_contract::Manifest;
+use rhai::{Engine, Scope};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
@@ -298,14 +299,23 @@ fn check_cycles(nodes: &[NodeSpec]) -> Result<()> {
         .map(|(i, n)| (n.id.as_str(), i))
         .collect();
 
-    // Build adjacency list using indices
+    // Build adjacency list using indices (inputs + when refs)
     let deps_of: Vec<Vec<usize>> = nodes
         .iter()
         .map(|n| {
-            n.inputs
+            let mut deps: Vec<usize> = n
+                .inputs
                 .values()
                 .filter_map(|r| idx_of.get(upstream_of(r)).copied())
-                .collect()
+                .collect();
+            if let Some(w) = &n.when {
+                for u in refs_in_str(w) {
+                    if let Some(&i) = idx_of.get(u) {
+                        deps.push(i);
+                    }
+                }
+            }
+            deps
         })
         .collect();
 
@@ -406,8 +416,20 @@ async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> 
         let mut handles = Vec::new();
         for n in &ready {
             let guard = outputs.lock().await;
-            let input = build_input(n, &guard);
+            let mut input = build_input(n, &guard);
+
+            if let Some(cond) = &n.when {
+                if !eval_when(cond, &guard)? {
+                    info!(id = n.id, when = cond, "node skipped");
+                    drop(guard);
+                    outputs.lock().await.insert(n.id.clone(), Value::Null);
+                    continue;
+                }
+            }
+
+            interpolate_json(&mut input, &guard);
             drop(guard);
+
             let sem = sem.clone();
             let node = n.clone();
             let bin = node_bins
@@ -435,6 +457,31 @@ fn deps_satisfied(node: &NodeSpec, outputs: &HashMap<String, Value>) -> bool {
     node.inputs
         .values()
         .all(|r| outputs.contains_key(upstream_of(r)))
+        && node
+            .when
+            .as_deref()
+            .map(|w| refs_in_str(w).iter().all(|&u| outputs.contains_key(u)))
+            .unwrap_or(true)
+}
+
+fn refs_in_str(s: &str) -> Vec<&str> {
+    let mut refs = Vec::new();
+    let mut rest = s;
+    while let Some(start) = rest.find("{{") {
+        rest = &rest[start + 2..];
+        if let Some(end) = rest.find("}}") {
+            let ref_str = rest[..end].trim();
+            if let Some(dot) = ref_str.find('.') {
+                refs.push(&ref_str[..dot]);
+            } else {
+                refs.push(ref_str);
+            }
+            rest = &rest[end + 2..];
+        } else {
+            break;
+        }
+    }
+    refs
 }
 
 fn upstream_of(refstr: &str) -> &str {
@@ -466,6 +513,83 @@ fn resolve_ref(refstr: &str, outputs: &HashMap<String, Value>) -> Value {
     } else {
         out.get(field).cloned().unwrap_or(Value::Null)
     }
+}
+
+// ── Expression evaluation & interpolation ─────────────────────────────────
+
+fn eval_when(condition: &str, outputs: &HashMap<String, Value>) -> Result<bool> {
+    let engine = Engine::new();
+    let mut scope = Scope::new();
+
+    for (id, val) in outputs {
+        let dyn_val = rhai::serde::to_dynamic(val.clone())
+            .map_err(|e| anyhow::anyhow!("failed to convert output '{}' for when: {}", id, e))?;
+        scope.push_constant_dynamic(id.clone(), dyn_val);
+    }
+
+    let expr = condition.trim();
+    let expr = expr
+        .strip_prefix("{{")
+        .and_then(|s| s.strip_suffix("}}"))
+        .map(|s| s.trim())
+        .unwrap_or(expr);
+
+    if expr.is_empty() || expr == "true" {
+        return Ok(true);
+    }
+    if expr == "false" {
+        return Ok(false);
+    }
+
+    let result: bool = engine
+        .eval_expression_with_scope(&mut scope, expr)
+        .map_err(|e| anyhow::anyhow!("when expression '{}' failed: {e}", expr))?;
+    Ok(result)
+}
+
+fn interpolate_json(value: &mut Value, outputs: &HashMap<String, Value>) {
+    match value {
+        Value::String(s) => {
+            *s = interpolate_str(s, outputs);
+        }
+        Value::Object(obj) => {
+            for v in obj.values_mut() {
+                interpolate_json(v, outputs);
+            }
+        }
+        Value::Array(arr) => {
+            for v in arr.iter_mut() {
+                interpolate_json(v, outputs);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn interpolate_str(s: &str, outputs: &HashMap<String, Value>) -> String {
+    let mut result = String::new();
+    let mut rest = s;
+    while let Some(start) = rest.find("{{") {
+        result.push_str(&rest[..start]);
+        rest = &rest[start + 2..];
+        if let Some(end) = rest.find("}}") {
+            let ref_str = rest[..end].trim();
+            rest = &rest[end + 2..];
+            match resolve_ref(ref_str, outputs) {
+                Value::String(v) => result.push_str(&v),
+                Value::Null => {}
+                other => result.push_str(&other.to_string()),
+            }
+        } else {
+            result.push('{');
+            result.push('{');
+            result.push_str(rest);
+            rest = "";
+            break;
+        }
+    }
+    result.push_str(rest);
+    result
 }
 
 // ── Node execution ─────────────────────────────────────────────────────────
@@ -507,13 +631,6 @@ async fn execute_node(
         .strip_prefix("retry(")
         .map(|n| n.trim_end_matches(')').parse::<u32>().unwrap_or(0))
         .unwrap_or(0);
-
-    if let Some(cond) = &node.when {
-        if cond.trim() == "false" {
-            info!(when = "false", "node skipped");
-            return Ok((node.id.clone(), Value::Null));
-        }
-    }
 
     validate_input(&input, &bin.manifest.inputs, &node.id)?;
     let mut input = input;
@@ -802,5 +919,121 @@ mod tests {
     fn test_validate_input_no_schema() {
         let input = json!({"anything": "goes"});
         assert!(validate_input(&input, &Value::Null, "test").is_ok());
+    }
+
+    #[test]
+    fn test_eval_when_true() {
+        let outputs = HashMap::new();
+        assert!(eval_when("true", &outputs).unwrap());
+        assert!(eval_when("{{true}}", &outputs).unwrap());
+    }
+
+    #[test]
+    fn test_eval_when_false() {
+        let outputs = HashMap::new();
+        assert!(!eval_when("false", &outputs).unwrap());
+        assert!(!eval_when("{{false}}", &outputs).unwrap());
+    }
+
+    #[test]
+    fn test_eval_when_expression() {
+        let mut outputs = HashMap::new();
+        outputs.insert("src".into(), json!({"count": 10}));
+        assert!(eval_when("{{ src.count > 5 }}", &outputs).unwrap());
+        assert!(!eval_when("{{ src.count < 5 }}", &outputs).unwrap());
+        assert!(eval_when("{{ src.count == 10 }}", &outputs).unwrap());
+    }
+
+    #[test]
+    fn test_eval_when_boolean_logic() {
+        let mut outputs = HashMap::new();
+        outputs.insert("a".into(), json!({"ok": true}));
+        outputs.insert("b".into(), json!({"done": false}));
+        assert!(eval_when("{{ a.ok && !b.done }}", &outputs).unwrap());
+        assert!(!eval_when("{{ !a.ok }}", &outputs).unwrap());
+        assert!(eval_when("{{ a.ok || b.done }}", &outputs).unwrap());
+    }
+
+    #[test]
+    fn test_refs_in_str_empty() {
+        assert!(refs_in_str("hello world").is_empty());
+    }
+
+    #[test]
+    fn test_refs_in_str_single() {
+        let refs = refs_in_str("{{ src.echo }} > 5");
+        assert_eq!(refs, vec!["src"]);
+    }
+
+    #[test]
+    fn test_refs_in_str_multiple() {
+        let mut refs = refs_in_str("{{ a.x }} && {{ b.y }}");
+        refs.sort();
+        assert_eq!(refs, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn test_deps_satisfied_with_when_refs() {
+        let mut outputs = HashMap::new();
+        outputs.insert("src".into(), json!({}));
+        let node = NodeSpec {
+            id: "check".into(),
+            use_: "echo".into(),
+            with: json!({}),
+            inputs: Default::default(),
+            when: Some("{{ src.count > 5 }}".into()),
+            on_error: None,
+        };
+        assert!(deps_satisfied(&node, &outputs));
+    }
+
+    #[test]
+    fn test_deps_satisfied_with_when_refs_missing() {
+        let outputs = HashMap::new();
+        let node = NodeSpec {
+            id: "check".into(),
+            use_: "echo".into(),
+            with: json!({}),
+            inputs: Default::default(),
+            when: Some("{{ src.count > 5 }}".into()),
+            on_error: None,
+        };
+        assert!(!deps_satisfied(&node, &outputs));
+    }
+
+    #[test]
+    fn test_interpolate_str_no_templates() {
+        let outputs = HashMap::new();
+        assert_eq!(interpolate_str("hello world", &outputs), "hello world");
+    }
+
+    #[test]
+    fn test_interpolate_str_simple() {
+        let mut outputs = HashMap::new();
+        outputs.insert("a".into(), json!({"name": "Alice"}));
+        assert_eq!(
+            interpolate_str("Hello {{ a.name }}!", &outputs),
+            "Hello Alice!"
+        );
+    }
+
+    #[test]
+    fn test_interpolate_str_numeric() {
+        let mut outputs = HashMap::new();
+        outputs.insert("x".into(), json!({"val": 42}));
+        assert_eq!(interpolate_str("count={{ x.val }}", &outputs), "count=42");
+    }
+
+    #[test]
+    fn test_interpolate_json_nested() {
+        let mut outputs = HashMap::new();
+        outputs.insert("env".into(), json!({"host": "example.com", "port": 8080}));
+        let mut input = json!({
+            "url": "https://{{ env.host }}:{{ env.port }}/api",
+            "meta": { "name": "static" }
+        });
+        interpolate_json(&mut input, &outputs);
+        assert_eq!(input["url"], "https://example.com:8080/api");
+        assert_eq!(input["meta"]["name"], "static");
     }
 }

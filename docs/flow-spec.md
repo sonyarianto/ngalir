@@ -27,10 +27,15 @@ nodes:
     use: file
     with:
       action: write
-      path: /tmp/report.json
+      path: "/tmp/report-{{ src.row_count }}.json"
     inputs:
       content: transform.result
     on_error: retry(3)      # stop | continue | retry(N)
+  - id: alert
+    use: echo
+    with:
+      message: "order count is high"
+    when: "{{ src.row_count > 1000 }}"
 ```
 
 ## Fields
@@ -57,6 +62,11 @@ nodes:
 - **Secrets**: any `vault://` value in `with` is resolved by `na-vault` and
   injected into the input JSON before sending to the node.
 - **Branching**: via `when:` expression on a node (skips node if false).
+  Expressions support comparisons (`>`, `<`, `==`, `!=`, `>=`, `<=`), boolean
+  logic (`&&`, `||`, `!`), and field access via `{{ id.field }}`. The expression
+  engine is [Rhai](https://rhai.rs).
+- **Template interpolation**: string values in `with:` support `{{ id.field }}`
+  patterns that resolve to upstream node outputs at runtime.
 - **Loops / iteration**: deferred to v2 (map over streamed arrays).
 
 ## Decisions (LOCKED v1)

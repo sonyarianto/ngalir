@@ -1,0 +1,13 @@
+version: 1
+name: when-demo
+description: "Demonstrate when: condition and {{ }} interpolation"
+nodes:
+  - id: src
+    use: echo
+    with:
+      message: "42"
+  - id: check
+    use: echo
+    with:
+      message: "count is high"
+    when: "{{ src.echo == \"42\" }}"
