@@ -5,6 +5,126 @@ let wires = $state<Wire[]>([])
 let selectedId = $state<string | null>(null)
 let flowName = $state('untitled')
 let filename = $state('')
+let running = $state(false)
+let stepMode = $state(false)
+let stepReady = $state(false)
+let currentFlowId = $state('')
+let ws: WebSocket | null = $state(null)
+
+function connectWs() {
+  if (ws?.readyState === WebSocket.OPEN) return
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  ws = new WebSocket(`${proto}//${location.host}/ws`)
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'node_input_ready') {
+        const n = nodes.find((n) => n.id === msg.node_id)
+        if (n) {
+          n.status = 'running'
+          n.input = msg.output
+        }
+      } else if (msg.type === 'node_started') {
+        const n = nodes.find((n) => n.id === msg.node_id)
+        if (n) n.status = 'running'
+      } else if (msg.type === 'node_completed') {
+        const n = nodes.find((n) => n.id === msg.node_id)
+        if (n) {
+          n.status = 'done'
+          n.output = msg.output
+        }
+      } else if (msg.type === 'node_failed') {
+        const n = nodes.find((n) => n.id === msg.node_id)
+        if (n) {
+          n.status = 'failed'
+          n.error = msg.error
+        }
+      } else if (msg.type === 'node_skipped') {
+        const n = nodes.find((n) => n.id === msg.node_id)
+        if (n) n.status = 'done'
+      } else if (msg.type === 'flow_started') {
+        for (const n of nodes) {
+          n.status = 'pending'
+          delete n.input
+          delete n.output
+          delete n.error
+        }
+      } else if (msg.type === 'step_ready') {
+        stepReady = true
+      } else if (msg.type === 'flow_completed' || msg.type === 'flow_failed') {
+        running = false
+        stepReady = false
+        stepMode = false
+      }
+    } catch { /* ignore malformed */ }
+  }
+  ws.onclose = () => { ws = null }
+}
+
+async function runFlow() {
+  const flowJson = exportFlow()
+  const flow = JSON.parse(flowJson)
+  running = true
+  stepMode = false
+  stepReady = false
+  for (const n of nodes) n.status = 'pending'
+  connectWs()
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flow }),
+    })
+    const data = await res.json()
+    currentFlowId = data.flow_id
+  } catch {
+    running = false
+    for (const n of nodes) delete n.status
+  }
+}
+
+async function runStepFlow() {
+  const flowJson = exportFlow()
+  const flow = JSON.parse(flowJson)
+  running = true
+  stepMode = true
+  stepReady = false
+  for (const n of nodes) n.status = 'pending'
+  connectWs()
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flow, step: true }),
+    })
+    const data = await res.json()
+    currentFlowId = data.flow_id
+  } catch {
+    running = false
+    stepMode = false
+    for (const n of nodes) delete n.status
+  }
+}
+
+function wsSend(action: string) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ action, flow_id: currentFlowId }))
+}
+
+function stepContinue() {
+  stepReady = false
+  wsSend('continue')
+}
+
+function stepStop() {
+  stepReady = false
+  stepMode = false
+  wsSend('stop')
+}
+
+function resetStatus() {
+  for (const n of nodes) delete n.status
+}
 
 function addNode(type: string, position: { x: number; y: number }) {
   const id = `${type}-${nodes.length + 1}`
@@ -104,6 +224,9 @@ export function getStore() {
     get selectedId() { return selectedId },
     get flowName() { return flowName },
     get filename() { return filename },
+    get running() { return running },
+    get stepMode() { return stepMode },
+    get stepReady() { return stepReady },
     set flowName(v: string) { flowName = v },
     set filename(v: string) { filename = v },
     addNode,
@@ -116,5 +239,11 @@ export function getStore() {
     exportFlow,
     importFlow,
     loadSample,
+    runFlow,
+    runStepFlow,
+    stepContinue,
+    stepStop,
+    resetStatus,
+    connectWs,
   }
 }

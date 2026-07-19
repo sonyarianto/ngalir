@@ -22,8 +22,9 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
 clap = { version = "4.6.1", features = ["derive"] }
 prometheus = { version = "0.14", features = ["process"] }
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tower-http = { version = "0.6", features = ["fs"] }
 tempfile = "3.27.0"
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

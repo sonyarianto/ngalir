@@ -9,55 +9,17 @@
   }
 </script>
 
-<aside>
-  <h3>Nodes</h3>
+<aside class="w-40 bg-[#16162a] border-r border-[#333] p-2 overflow-y-auto flex flex-col gap-1">
+  <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Nodes</h3>
   {#each CATEGORIES as cat}
-    <h4>{cat.name}</h4>
+    <h4 class="text-[10px] text-[#888] uppercase mt-2 mb-1">{cat.name}</h4>
     {#each cat.nodes as type}
-      <button onclick={() => addToCanvas(type)}>
+      <button
+        class="px-2 py-1 border border-[#333] rounded bg-[#1e1e36] text-xs text-[#ccc] text-left font-mono cursor-pointer hover:border-[#7c3aed] hover:bg-[#2e2e4e]"
+        onclick={() => addToCanvas(type)}
+      >
         na-{type}
       </button>
     {/each}
   {/each}
 </aside>
-
-<style>
-  aside {
-    width: 160px;
-    background: #16162a;
-    border-right: 1px solid #333;
-    padding: 0.5rem;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  h3 {
-    font-size: 0.85rem;
-    color: #7c3aed;
-    margin: 0 0 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  h4 {
-    font-size: 0.7rem;
-    color: #888;
-    margin: 0.5rem 0 0.25rem;
-    text-transform: uppercase;
-  }
-  button {
-    padding: 0.35rem 0.6rem;
-    border: 1px solid #333;
-    border-radius: 4px;
-    background: #1e1e36;
-    color: #ccc;
-    cursor: pointer;
-    text-align: left;
-    font-size: 0.8rem;
-    font-family: monospace;
-  }
-  button:hover {
-    background: #2e2e4e;
-    border-color: #7c3aed;
-  }
-</style>

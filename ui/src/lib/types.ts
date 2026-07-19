@@ -25,6 +25,9 @@ export interface CanvasNode extends NodeSpec {
   position: Position
   selected?: boolean
   status?: 'pending' | 'running' | 'done' | 'failed'
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
+  error?: string
 }
 
 export interface Port {

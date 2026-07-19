@@ -36,76 +36,37 @@
   }
 </script>
 
-<svelte:window
-  onmousemove={handleMouseMove}
-  onmouseup={handleMouseUp}
-/>
+<svelte:window onmousemove={handleMouseMove} onmouseup={handleMouseUp} />
 
 <div
   bind:this={el}
-  class="node"
-  class:selected={node.selected}
-  class:dragging
+  class="absolute min-w-40 bg-[#1a1a32] border rounded-lg cursor-move text-xs z-10 select-none"
+  class:border-[#7c3aed]!={node.selected}
+  class:shadow-[0_0_8px_rgba(124,58,237,0.4)]={node.selected}
+  class:opacity-85={dragging}
+  class:z-100={dragging}
+  class:border-[#555]={!node.selected}
   style="left: {node.position.x}px; top: {node.position.y}px"
   onmousedown={handleMouseDown}
 >
-  <div class="header">{node.use}</div>
-  <div class="body">
-    <span class="id">{node.id}</span>
+  <div class="px-2 py-1 bg-[#2a2a4a] border-b border-[#333] rounded-t-md font-semibold text-[#7c3aed] font-mono flex items-center gap-2">
+    <span class="flex-1">{node.use}</span>
+    {#if node.status}
+      <span
+        class="w-2 h-2 rounded-full inline-block"
+        class:bg-yellow-400={node.status === 'pending'}
+        class:bg-blue-400={node.status === 'running'}
+        class:bg-green-400={node.status === 'done'}
+        class:bg-red-400={node.status === 'failed'}
+      />
+    {/if}
+  </div>
+  <div class="px-2 py-1 text-[#aaa]">
+    <span class="block text-[10px] text-[#888] mb-1">{node.id}</span>
     {#each Object.entries(node.inputs ?? {}) as [k, v]}
-      <div class="io">
-        <span class="dot" />{k} ← {v}
+      <div class="flex items-center gap-1 text-[11px] text-[#999]">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#7c3aed] inline-block" />{k} ← {v}
       </div>
     {/each}
   </div>
 </div>
-
-<style>
-  .node {
-    position: absolute;
-    min-width: 160px;
-    background: #1a1a32;
-    border: 1px solid #333;
-    border-radius: 6px;
-    cursor: move;
-    font-size: 0.75rem;
-    z-index: 10;
-    user-select: none;
-  }
-  .node:hover { border-color: #555 }
-  .node.selected { border-color: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.4) }
-  .node.dragging { opacity: 0.85; z-index: 100 }
-  .header {
-    padding: 0.35rem 0.6rem;
-    background: #2a2a4a;
-    border-bottom: 1px solid #333;
-    border-radius: 5px 5px 0 0;
-    font-weight: 600;
-    color: #7c3aed;
-    font-family: monospace;
-  }
-  .body {
-    padding: 0.4rem 0.6rem;
-    color: #aaa;
-  }
-  .id {
-    display: block;
-    color: #888;
-    font-size: 0.65rem;
-    margin-bottom: 0.25rem;
-  }
-  .io {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.7rem;
-    color: #999;
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #7c3aed;
-    display: inline-block;
-  }
-</style>

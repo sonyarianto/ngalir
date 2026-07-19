@@ -6,20 +6,22 @@
 //! concurrency. Inter-node data is piped as JSON via stdin/stdout.
 
 use anyhow::{bail, Context, Result};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::State;
 use clap::{Parser, Subcommand};
 use na_contract::Manifest;
 use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
 use rhai::{Engine, Scope};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::{Mutex, Semaphore};
+use tokio::sync::broadcast;
+use tokio::sync::Semaphore;
 use tower_http::services::ServeDir;
 use tracing::{error, info, info_span, warn, Instrument};
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -126,6 +128,17 @@ enum Commands {
         #[arg(long, default_value = "./ui/dist")]
         ui_dir: String,
     },
+    /// Analyze a flow and suggest optimizations
+    Optimize {
+        /// Path to Flow Spec YAML file
+        flow: String,
+        /// LLM model to use (default: gpt-4o)
+        #[arg(long)]
+        model: Option<String>,
+        /// Output file path (default: stdout)
+        #[arg(long)]
+        output: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -168,6 +181,11 @@ async fn main() -> Result<()> {
             output,
         } => cmd_generate(prompt, edit, model, output).await,
         Commands::Serve { port, ui_dir } => cmd_serve(port, &ui_dir).await,
+        Commands::Optimize {
+            flow,
+            model,
+            output,
+        } => cmd_optimize(&flow, model, output).await,
     }
 }
 
@@ -296,7 +314,7 @@ async fn cmd_run(path: &str, state_dir: Option<String>, input_json: Option<Strin
         })
         .unwrap_or_default();
 
-    let outputs = execute_flow(&flow, &node_bins, &mut store, initial_outputs).await?;
+    let outputs = execute_flow(&flow, &node_bins, &mut store, initial_outputs, None, None).await?;
 
     let result = serde_json::to_string(&outputs)?;
     println!("{result}");
@@ -473,14 +491,199 @@ async fn cmd_generate(
     Ok(())
 }
 
+/// Estimate the relative cost of a node type (0-100 scale).
+fn estimate_node_cost(use_name: &str, _bin: Option<&Manifest>) -> u32 {
+    match use_name {
+        "llm" => 80,
+        "db-postgres" | "db-mysql" | "db-sqlite" => 30,
+        "http" => 20,
+        "webhook" => 10,
+        "vault" => 5,
+        "email" => 5,
+        "csv" | "excel" | "google-sheets" => 15,
+        _ => 10,
+    }
+}
+
+async fn cmd_optimize(
+    flow_path: &str,
+    model: Option<String>,
+    output: Option<String>,
+) -> Result<()> {
+    let flow_raw =
+        std::fs::read_to_string(flow_path).with_context(|| format!("read {flow_path}"))?;
+    let flow: FlowSpec = serde_yaml::from_str(&flow_raw)
+        .or_else(|_| serde_json::from_str(&flow_raw))
+        .with_context(|| format!("parse {flow_path} as YAML/JSON"))?;
+
+    // Pre-compute cost estimate and retry suggestions
+    let mut cost_total = 0u32;
+    let mut suggestions: Vec<String> = Vec::new();
+
+    for node in &flow.nodes {
+        let bin = if let Ok(b) = discover_node(&node.use_).await {
+            Some(b.manifest)
+        } else {
+            None
+        };
+
+        let cost = estimate_node_cost(&node.use_, bin.as_ref());
+        cost_total += cost;
+
+        // Check if node is idempotent but lacks on_error retry
+        if let Some(ref m) = bin {
+            if m.idempotent && node.on_error.is_none() {
+                suggestions.push(format!(
+                    "node '{}' is idempotent (na-{}) — consider adding on_error: retry or a retry strategy",
+                    node.id, node.use_
+                ));
+            }
+        }
+
+        // Check if node uses vault refs but no retry
+        if node.on_error.is_none() {
+            let with_str = serde_json::to_string(&node.with).unwrap_or_default();
+            if with_str.contains("vault://") {
+                suggestions.push(format!(
+                    "node '{}' uses vault secrets — add on_error: retry for resilience against transient vault failures",
+                    node.id
+                ));
+            }
+        }
+    }
+
+    // AI optimization suggestions
+    let registry = skills_registry_json().await?;
+    let system_prompt = format!(
+        "You are Ngalir, a workflow optimization engine. \
+        Analyze the given flow and suggest improvements including:\n\
+        - Parallelization opportunities (can any nodes run concurrently?)\n\
+        - Error handling improvements (on_error strategies)\n\
+        - Performance bottlenecks\n\
+        - Alternative node choices\n\
+        - Cost reduction suggestions\n\n\
+        Available nodes:\n{registry}\n\n\
+        Reply with a concise analysis, no YAML output needed."
+    );
+
+    let user_message = format!(
+        "Analyze this flow and suggest optimizations:\n\n\
+        ```yaml\n{flow_raw}\n```\n\n\
+        Estimated cost score: {cost_total}/node (relative).\n\
+        Initial suggestions:\n{}\n\n\
+        Provide specific, actionable recommendations.",
+        suggestions
+            .iter()
+            .map(|s| format!("- {s}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    let llm_input = json!({
+        "model": model.unwrap_or_else(|| "gpt-4o".to_string()),
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 2048,
+    });
+
+    let bin = discover_node("llm").await?;
+    let result = call_node(&bin.binary, &llm_input).await?;
+    let analysis = result["content"]
+        .as_str()
+        .unwrap_or("No analysis returned")
+        .to_string();
+
+    let output_text = format!(
+        "Flow: {name} v{version}\n\
+         Nodes: {count}\n\
+         Estimated cost score: {cost}\n\n\
+         -- Suggestions --\n{suggestions}\n\n\
+         -- AI Analysis --\n{analysis}\n",
+        name = flow.name,
+        version = flow.version,
+        count = flow.nodes.len(),
+        cost = cost_total,
+        suggestions = suggestions.join("\n"),
+    );
+
+    if let Some(out_path) = output {
+        std::fs::write(&out_path, &output_text)?;
+        println!("Optimization report written to {out_path}");
+    } else {
+        print!("{output_text}");
+    }
+
+    Ok(())
+}
+
+// ── WebSocket events ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+struct FlowEvent {
+    r#type: String,
+    flow_id: String,
+    node_id: Option<String>,
+    output: Option<Value>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StepCommand {
+    action: String,
+    flow_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct Snapshot {
+    id: usize,
+    timestamp: String,
+    flow_name: String,
+    flow_id: String,
+    outputs: HashMap<String, Value>,
+}
+
+#[derive(Clone)]
+struct AppState {
+    tx: broadcast::Sender<FlowEvent>,
+    step_tx: broadcast::Sender<StepCommand>,
+    snapshots: Arc<Mutex<Vec<Snapshot>>>,
+}
+
+#[derive(Clone)]
+struct StepConfig {
+    flow_id: String,
+    step_tx: broadcast::Sender<StepCommand>,
+}
+
+type EventFn = dyn Fn(&str, Option<&str>, Option<&Value>, Option<&str>) + Send + Sync;
+
 async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
+    let (tx, _) = broadcast::channel(256);
+    let (step_tx, _) = broadcast::channel(256);
+    let state = AppState {
+        tx,
+        step_tx,
+        snapshots: Arc::new(Mutex::new(Vec::new())),
+    };
+
     let assets = ServeDir::new(ui_dir).append_index_html_on_directories(true);
 
     let app = axum::Router::new()
         .nest_service("/", assets)
         .route("/api/nodes", axum::routing::get(api_nodes))
         .route("/api/skills", axum::routing::get(api_skills))
-        .route("/api/health", axum::routing::get(|| async { "OK" }));
+        .route("/api/health", axum::routing::get(|| async { "OK" }))
+        .route("/api/run", axum::routing::post(api_run))
+        .route("/api/snapshots", axum::routing::get(api_snapshots))
+        .route(
+            "/api/snapshots/diff",
+            axum::routing::get(api_snapshots_diff),
+        )
+        .route("/ws", axum::routing::get(ws_handler))
+        .with_state(state);
 
     let addr: std::net::SocketAddr = ([0, 0, 0, 0], port).into();
     info!(port, ui_dir, "web UI server starting");
@@ -489,6 +692,264 @@ async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
         .with_context(|| format!("bind :{port}"))?;
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+#[derive(Deserialize)]
+struct RunRequest {
+    flow: FlowSpec,
+    #[serde(default)]
+    flow_id: String,
+    #[serde(default)]
+    step: bool,
+}
+
+#[derive(Serialize)]
+struct RunResponse {
+    flow_id: String,
+}
+
+async fn api_run(
+    State(state): State<AppState>,
+    axum::Json(req): axum::Json<RunRequest>,
+) -> Result<axum::Json<RunResponse>, axum::http::StatusCode> {
+    let flow_id = if req.flow_id.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        req.flow_id
+    };
+
+    let tx = state.tx.clone();
+    let step_tx = state.step_tx.clone();
+    let flow = req.flow;
+    let fid = flow_id.clone();
+    let step = req.step;
+    let snapshots = state.snapshots.clone();
+    let flow_name = flow.name.clone();
+
+    tokio::spawn(async move {
+        if let Err(e) = run_flow_with_events(
+            flow,
+            fid.clone(),
+            tx.clone(),
+            step_tx,
+            step,
+            snapshots,
+            flow_name,
+        )
+        .await
+        {
+            error!(flow_id = fid, error = %e, "flow execution failed");
+            let _ = tx.send(FlowEvent {
+                r#type: "flow_failed".into(),
+                flow_id: fid,
+                node_id: None,
+                output: None,
+                error: Some(e.to_string()),
+            });
+        }
+    });
+
+    Ok(axum::Json(RunResponse { flow_id }))
+}
+
+async fn run_flow_with_events(
+    flow: FlowSpec,
+    flow_id: String,
+    tx: broadcast::Sender<FlowEvent>,
+    step_tx: broadcast::Sender<StepCommand>,
+    step: bool,
+    snapshots: Arc<Mutex<Vec<Snapshot>>>,
+    flow_name: String,
+) -> Result<HashMap<String, Value>> {
+    let node_bins = preflight(&flow).await?;
+    let mut store = StateStore::disabled();
+    let fid = flow_id.clone();
+
+    let send =
+        move |typ: &str, node_id: Option<&str>, output: Option<&Value>, error: Option<&str>| {
+            let _ = tx.send(FlowEvent {
+                r#type: typ.into(),
+                flow_id: fid.clone(),
+                node_id: node_id.map(|s| s.to_string()),
+                output: output.cloned(),
+                error: error.map(|s| s.to_string()),
+            });
+        };
+
+    send("flow_started", None, None, None);
+
+    for node in &flow.nodes {
+        send("node_pending", Some(&node.id), None, None);
+    }
+
+    let step_cfg = step.then(|| StepConfig {
+        flow_id: flow_id.clone(),
+        step_tx: step_tx.clone(),
+    });
+
+    let result = execute_flow(
+        &flow,
+        &node_bins,
+        &mut store,
+        HashMap::new(),
+        Some(&send),
+        step_cfg.as_ref(),
+    )
+    .await;
+
+    match result {
+        Ok(outputs) => {
+            let out_val = Value::Object(
+                outputs
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+            );
+            send("flow_completed", None, Some(&out_val), None);
+            let snapshot = Snapshot {
+                id: 0,
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs().to_string())
+                    .unwrap_or_default(),
+                flow_name: flow_name.clone(),
+                flow_id: flow_id.clone(),
+                outputs: outputs.clone(),
+            };
+            if let Ok(mut list) = snapshots.lock() {
+                let id = list.len();
+                list.push(Snapshot { id, ..snapshot });
+            }
+            Ok(outputs)
+        }
+        Err(e) => {
+            send("flow_failed", None, None, Some(&e.to_string()));
+            Err(e)
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct SnapshotsResponse {
+    snapshots: Vec<Snapshot>,
+}
+
+async fn api_snapshots(State(state): State<AppState>) -> axum::Json<SnapshotsResponse> {
+    let list = state.snapshots.lock().unwrap_or_else(|e| e.into_inner());
+    axum::Json(SnapshotsResponse {
+        snapshots: list.clone(),
+    })
+}
+
+#[derive(Deserialize)]
+struct DiffQuery {
+    from: usize,
+    to: usize,
+}
+
+#[derive(Serialize)]
+struct DiffEntry {
+    node_id: String,
+    from: Option<Value>,
+    to: Option<Value>,
+    changed: bool,
+}
+
+#[derive(Serialize)]
+struct DiffResponse {
+    from: Snapshot,
+    to: Snapshot,
+    diffs: Vec<DiffEntry>,
+}
+
+async fn api_snapshots_diff(
+    State(state): State<AppState>,
+    axum::extract::Query(query): axum::extract::Query<DiffQuery>,
+) -> Result<axum::Json<DiffResponse>, axum::http::StatusCode> {
+    let list = state.snapshots.lock().unwrap_or_else(|e| e.into_inner());
+    let from = list
+        .get(query.from)
+        .cloned()
+        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+    let to = list
+        .get(query.to)
+        .cloned()
+        .ok_or(axum::http::StatusCode::NOT_FOUND)?;
+
+    let mut all_keys: BTreeSet<&str> = BTreeSet::new();
+    for k in from.outputs.keys().chain(to.outputs.keys()) {
+        all_keys.insert(k.as_str());
+    }
+
+    let diffs: Vec<DiffEntry> = all_keys
+        .into_iter()
+        .map(|k| {
+            let fv = from.outputs.get(k);
+            let tv = to.outputs.get(k);
+            DiffEntry {
+                node_id: k.to_string(),
+                from: fv.cloned(),
+                to: tv.cloned(),
+                changed: fv != tv,
+            }
+        })
+        .collect();
+
+    Ok(axum::Json(DiffResponse { from, to, diffs }))
+}
+
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+async fn handle_socket(mut socket: WebSocket, state: AppState) {
+    let mut rx = state.tx.subscribe();
+    let mut closed = false;
+
+    loop {
+        tokio::select! {
+            event = rx.recv() => {
+                match event {
+                    Ok(event) => {
+                        if let Ok(text) = serde_json::to_string(&event) {
+                            if socket.send(Message::Text(text.into())).await.is_err() {
+                                closed = true;
+                            }
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        warn!(lagged = n, "websocket client lagged behind");
+                        continue;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        closed = true;
+                    }
+                }
+            }
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if let Ok(cmd) = serde_json::from_str::<StepCommand>(&text) {
+                            let _ = state.step_tx.send(cmd);
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => {
+                        closed = true;
+                    }
+                    _ => {
+                        closed = true;
+                    }
+                }
+            }
+        }
+
+        if closed {
+            break;
+        }
+    }
 }
 
 async fn api_nodes() -> axum::Json<Vec<serde_json::Value>> {
@@ -834,11 +1295,14 @@ async fn execute_flow(
     node_bins: &HashMap<String, NodeBin>,
     store: &mut StateStore,
     initial_outputs: HashMap<String, Value>,
+    on_event: Option<&EventFn>,
+    step_cfg: Option<&StepConfig>,
 ) -> Result<HashMap<String, Value>> {
     let sem = Arc::new(Semaphore::new(flow.concurrency.max(1)));
     let mut merged = store.data.clone();
     merged.extend(initial_outputs);
-    let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(merged));
+    let outputs: Arc<tokio::sync::Mutex<HashMap<String, Value>>> =
+        Arc::new(tokio::sync::Mutex::new(merged));
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
 
     let output_dir = tempfile::TempDir::new()?;
@@ -904,6 +1368,9 @@ async fn execute_flow(
                     drop(guard);
                     let val = Value::Null;
                     outputs.lock().await.insert(n.id.clone(), val.clone());
+                    if let Some(f) = on_event {
+                        f("node_skipped", Some(&n.id), Some(&val), None);
+                    }
                     if resumed {
                         store.insert(n.id.clone(), val);
                         store.save()?;
@@ -915,24 +1382,69 @@ async fn execute_flow(
             interpolate_json(&mut input, &guard);
             drop(guard);
 
+            if let Some(f) = on_event {
+                f("node_input_ready", Some(&n.id), Some(&input), None);
+            }
+
+            if let Some(f) = on_event {
+                f("node_started", Some(&n.id), None, None);
+            }
+
             let sem = sem.clone();
             let node = n.clone();
+            let node_id_for_event = n.id.clone();
             let bin = node_bins
                 .get(&node.use_)
                 .cloned()
                 .with_context(|| format!("unknown node type '{}'", node.use_))?;
             let output_dir = output_dir_path.clone();
             handles.push(tokio::spawn(async move {
-                run_node(&node, &bin, input, sem, &output_dir).await
+                let result = run_node(&node, &bin, input, sem, &output_dir).await;
+                (node_id_for_event, result)
             }));
         }
 
         for h in handles {
-            let (id, val) = h.await.context("join node task")??;
-            outputs.lock().await.insert(id.clone(), val.clone());
-            if resumed {
-                store.insert(id, val);
-                store.save()?;
+            let (node_id, inner) = h.await.context("join node task")?;
+            match inner {
+                Ok((id, val)) => {
+                    if let Some(f) = on_event {
+                        f("node_completed", Some(&node_id), Some(&val), None);
+                    }
+                    outputs.lock().await.insert(id.clone(), val.clone());
+                    if resumed {
+                        store.insert(id, val);
+                        store.save()?;
+                    }
+                }
+                Err(e) => {
+                    if let Some(f) = on_event {
+                        f("node_failed", Some(&node_id), None, Some(&e.to_string()));
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        if let Some(cfg) = step_cfg {
+            if let Some(f) = on_event {
+                f("step_ready", None, None, None);
+            }
+            let mut rx = cfg.step_tx.subscribe();
+            loop {
+                match rx.recv().await {
+                    Ok(cmd) if cmd.flow_id == cfg.flow_id => match cmd.action.as_str() {
+                        "stop" => {
+                            let final_outputs = outputs.lock().await.clone();
+                            return Ok(final_outputs);
+                        }
+                        "continue" => break,
+                        _ => {}
+                    },
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                    _ => continue,
+                }
             }
         }
     }

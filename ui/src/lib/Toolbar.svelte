@@ -28,48 +28,20 @@
   }
 </script>
 
-<header>
-  <div class="brand">Ngalir</div>
-  <span class="name">{store.flowName}</span>
-  <div class="spacer" />
-  <button onclick={handleLoad}>Open</button>
-  <button onclick={handleSave}>Save</button>
-  <button onclick={() => store.loadSample()}>Sample</button>
-  <button class="run" onclick={() => alert('Run: connect to orchestrator')}>Run</button>
+<header class="flex items-center gap-2 px-4 py-2 bg-[#1a1a2e] border-b border-[#333] h-12">
+  <span class="font-bold text-lg text-[#7c3aed]">Ngalir</span>
+  <span class="text-sm opacity-60">{store.flowName}</span>
+  <div class="flex-1" />
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleLoad}>Open</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleSave}>Save</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.loadSample()}>Sample</button>
+  {#if store.stepReady}
+    <button class="px-3 py-1 border border-green-500 rounded bg-green-700 text-sm cursor-pointer hover:bg-green-600" onclick={() => store.stepContinue()}>Continue</button>
+    <button class="px-3 py-1 border border-red-500 rounded bg-red-700 text-sm cursor-pointer hover:bg-red-600" onclick={() => store.stepStop()}>Stop</button>
+  {:else if !store.running}
+    <button class="px-3 py-1 border border-[#7c3aed] rounded bg-[#7c3aed] text-sm cursor-pointer hover:bg-[#6d28d9]" onclick={() => store.runFlow()}>Run</button>
+    <button class="px-3 py-1 border border-[#7c3aed] rounded bg-[#3a2a6e] text-sm cursor-pointer hover:bg-[#4a3a7e]" onclick={() => store.runStepFlow()}>Step</button>
+  {:else}
+    <span class="text-sm text-yellow-400">Running{store.stepMode ? '…' : ''}</span>
+  {/if}
 </header>
-
-<style>
-  header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: #1a1a2e;
-    color: #e0e0e0;
-    border-bottom: 1px solid #333;
-    height: 48px;
-  }
-  .brand {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: #7c3aed;
-    margin-right: 0.5rem;
-  }
-  .name {
-    font-size: 0.9rem;
-    opacity: 0.7;
-  }
-  .spacer { flex: 1 }
-  button {
-    padding: 0.3rem 0.8rem;
-    border: 1px solid #444;
-    border-radius: 4px;
-    background: #2a2a3e;
-    color: #e0e0e0;
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-  button:hover { background: #3a3a4e }
-  button.run { background: #7c3aed; border-color: #7c3aed }
-  button.run:hover { background: #6d28d9 }
-</style>

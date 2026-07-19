@@ -9,27 +9,11 @@
   $effect(() => { store.loadSample() })
 </script>
 
-<Toolbar />
-<div class="workspace">
-  <NodePalette />
-  <FlowCanvas />
-  <PropertyPanel />
+<div class="h-screen flex flex-col bg-[#0f0f23] text-[#e0e0e0]">
+  <Toolbar />
+  <div class="flex flex-1 overflow-hidden">
+    <NodePalette />
+    <FlowCanvas />
+    <PropertyPanel />
+  </div>
 </div>
-
-<style>
-  :global(*) {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-  :global(body) {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f0f23;
-    color: #e0e0e0;
-    overflow: hidden;
-  }
-  .workspace {
-    display: flex;
-    height: calc(100vh - 48px);
-  }
-</style>

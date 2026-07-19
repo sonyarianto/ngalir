@@ -8,15 +8,13 @@
   function updateWhen(e: Event) {
     const n = store.nodes.find((n) => n.id === store.selectedId)
     if (!n) return
-    const val = (e.target as HTMLInputElement).value
-    n.when = val || undefined
+    n.when = (e.target as HTMLInputElement).value || undefined
   }
 
   function updateOnError(e: Event) {
     const n = store.nodes.find((n) => n.id === store.selectedId)
     if (!n) return
-    const val = (e.target as HTMLInputElement).value
-    n.on_error = val || undefined
+    n.on_error = (e.target as HTMLInputElement).value || undefined
   }
 
   function updateId(e: Event) {
@@ -67,119 +65,68 @@
   }
 </script>
 
-<aside>
-  <h3>Properties</h3>
+<aside class="w-56 bg-[#16162a] border-l border-[#333] p-2 overflow-y-auto text-xs">
+  <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Properties</h3>
   {#if node}
-    <div class="field">
-      <label>id</label>
-      <input value={node.id} oninput={updateId} />
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
+      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.id} oninput={updateId} />
     </div>
-    <div class="field">
-      <label>use</label>
-      <input value={node.use} oninput={updateUse} />
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">use</label>
+      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.use} oninput={updateUse} />
     </div>
-    <div class="field">
-      <label>when</label>
-      <input value={node.when ?? ''} placeholder="optional" oninput={updateWhen} />
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">when</label>
+      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.when ?? ''} placeholder="optional" oninput={updateWhen} />
     </div>
-    <div class="field">
-      <label>on_error</label>
-      <input value={node.on_error ?? ''} placeholder="optional" oninput={updateOnError} />
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">on_error</label>
+      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.on_error ?? ''} placeholder="optional" oninput={updateOnError} />
     </div>
-    <div class="field">
-      <label>with (config)</label>
-      <textarea
-        value={JSON.stringify(node.with ?? {}, null, 2)}
-        oninput={updateWith}
-        rows="4"
-      />
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">with (config)</label>
+      <textarea class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border resize-y" value={JSON.stringify(node.with ?? {}, null, 2)} oninput={updateWith} rows="4" />
     </div>
-    <div class="field">
-      <label>inputs</label>
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">inputs</label>
       {#each Object.entries(node.inputs ?? {}) as [k, v]}
-        <div class="input-row">
-          <input
-            value={k}
-            oninput={(e) => updateInputKey(k, e.currentTarget.value)}
-            placeholder="key"
-          />
-          <span>←</span>
-          <input
-            value={v}
-            oninput={(e) => updateInputVal(k, e.currentTarget.value)}
-            placeholder="node.output"
-          />
-          <button class="remove" onclick={() => removeInput(k)}>x</button>
+        <div class="flex gap-1 items-center mb-0.5">
+          <input class="flex-1 min-w-0 px-1.5 py-0.5 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-[11px] font-mono box-border" value={k} oninput={(e) => updateInputKey(k, e.currentTarget.value)} placeholder="key" />
+          <span class="text-[10px] text-[#555]">←</span>
+          <input class="flex-1 min-w-0 px-1.5 py-0.5 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-[11px] font-mono box-border" value={v} oninput={(e) => updateInputVal(k, e.currentTarget.value)} placeholder="node.output" />
+          <button class="px-1 border border-[#333] rounded bg-[#1e1e36] text-[#ef4444] text-[11px] cursor-pointer hover:bg-[#2e2e4e]" onclick={() => removeInput(k)}>x</button>
         </div>
       {/each}
-      <button class="add" onclick={addInput}>+ Add input</button>
+      <button class="w-full mt-1 px-1 py-0.5 border border-[#333] rounded bg-[#1e1e36] text-[#ccc] text-[11px] cursor-pointer hover:bg-[#2e2e4e]" onclick={addInput}>+ Add input</button>
     </div>
+    {#if node.input || node.output || node.error || node.status}
+      <div class="border-t border-[#333] pt-2 mt-2">
+        <h4 class="text-[10px] text-[#7c3aed] uppercase tracking-wider mb-1">Preview</h4>
+        {#if node.status}
+          <div class="text-[10px] text-[#888] mb-1">status: {node.status}</div>
+        {/if}
+        {#if node.error}
+          <div class="mb-1">
+            <span class="text-[10px] text-red-400 uppercase">error</span>
+            <pre class="mt-0.5 px-1.5 py-1 bg-[#1a1a30] rounded text-red-300 text-[10px] whitespace-pre-wrap font-mono">{node.error}</pre>
+          </div>
+        {/if}
+        {#if node.input}
+          <div class="mb-1">
+            <span class="text-[10px] text-yellow-400 uppercase">input</span>
+            <pre class="mt-0.5 px-1.5 py-1 bg-[#1a1a30] rounded text-[#ccc] text-[10px] whitespace-pre-wrap font-mono overflow-x-auto">{JSON.stringify(node.input, null, 2)}</pre>
+          </div>
+        {/if}
+        {#if node.output}
+          <div class="mb-1">
+            <span class="text-[10px] text-green-400 uppercase">output</span>
+            <pre class="mt-0.5 px-1.5 py-1 bg-[#1a1a30] rounded text-[#ccc] text-[10px] whitespace-pre-wrap font-mono overflow-x-auto">{JSON.stringify(node.output, null, 2)}</pre>
+          </div>
+        {/if}
+      </div>
+    {/if}
   {:else}
-    <p class="hint">Select a node to edit</p>
+    <p class="text-[#555] italic text-center mt-8">Select a node to edit</p>
   {/if}
 </aside>
-
-<style>
-  aside {
-    width: 220px;
-    background: #16162a;
-    border-left: 1px solid #333;
-    padding: 0.5rem;
-    overflow-y: auto;
-    font-size: 0.75rem;
-  }
-  h3 {
-    font-size: 0.85rem;
-    color: #7c3aed;
-    margin: 0 0 0.5rem;
-    text-transform: uppercase;
-  }
-  .field {
-    margin-bottom: 0.6rem;
-  }
-  label {
-    display: block;
-    color: #888;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    margin-bottom: 0.15rem;
-  }
-  input, textarea {
-    width: 100%;
-    padding: 0.3rem;
-    border: 1px solid #333;
-    border-radius: 3px;
-    background: #0f0f23;
-    color: #e0e0e0;
-    font-size: 0.75rem;
-    font-family: monospace;
-    box-sizing: border-box;
-  }
-  textarea { resize: vertical }
-  .hint {
-    color: #555;
-    font-style: italic;
-    text-align: center;
-    margin-top: 2rem;
-  }
-  .input-row {
-    display: flex;
-    gap: 0.25rem;
-    align-items: center;
-    margin-bottom: 0.25rem;
-  }
-  .input-row input { flex: 1; min-width: 0 }
-  .input-row span { color: #555; font-size: 0.7rem }
-  button.add, button.remove {
-    padding: 0.15rem 0.4rem;
-    border: 1px solid #333;
-    border-radius: 3px;
-    background: #1e1e36;
-    color: #ccc;
-    cursor: pointer;
-    font-size: 0.7rem;
-  }
-  button.add { width: 100%; margin-top: 0.25rem }
-  button.remove { color: #ef4444 }
-  button:hover { background: #2e2e4e }
-</style>
