@@ -18,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 92 unit + integration tests across all crates
-- ✅ 15 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv
+- ✅ 16 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
@@ -174,26 +174,16 @@ transform → upload to database" or "sync Google Sheet → Excel report daily."
 - 13 unit tests covering: read/write with file, stdin, stdout, delimiters, headers, error cases
 - Error handling: missing path for read, missing rows for write, file I/O errors
 
-### 5.2 `na-excel` — Excel (.xlsx) processor
+### 5.2 `na-excel` — Excel (.xlsx) processor ✅ (Complete)
 
-**Why second:** Ubiquitous in enterprise and office environments.
-Use `calamine` for reading (no Office install needed) and
-`rust_xlsxwriter` for writing.
-
-**Target:**
-- **Read** .xlsx / .xls files → JSON array per sheet
-- **Write** .xlsx files from JSON arrays
-- Select specific sheets by name or index
-- Cell range selection: `A1:C10` or named ranges
-- Type-aware: dates → ISO strings, numbers → JSON numbers,
-  formulas → resolved values (calamine resolves them)
-- Large file support: streaming read for >10MB files
-
-**Input example:**
-```json
-{ "action": "read", "path": "/data/report.xlsx",
-  "sheet": "Sheet1", "range": "A1:F100" }
-```
+**Streaming Excel node implemented (calamine + rust_xlsxwriter):**
+- **Read** .xlsx files → streams rows as NDJSON (one per line, columns A, B, C...)
+- **Write** .xlsx files from JSON rows array, columns auto-inferred and sorted
+- Sheet selection by name or 0-based index
+- Cell range selection: `A1:C10` syntax (1-indexed, inclusive)
+- Type-aware: integers, floats, strings, booleans, dates (→ ISO 8601)
+- Whole-number floats auto-converted to integers on read
+- 13 unit tests covering: roundtrip, sheet by name/index, range selection, errors, edge cases
 
 **Output example:**
 ```json
@@ -379,6 +369,7 @@ nodes:
 ### After Phase 5 (Data Processing) 🔄
 
 **5.1 ✅ CSV — done.**
+**5.2 ✅ Excel — done.**
 
 ```yaml
 # Download CSV from SFTP → clean → load to database → email report
