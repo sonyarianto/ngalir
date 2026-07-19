@@ -71,3 +71,27 @@ fn main() {
         _ => fail(exit_code::INVALID_INPUT, "action must be 'read' or 'write'"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_structure() {
+        let m = manifest();
+        assert_eq!(m.name, "na-file");
+        let required = m.inputs.get("required").unwrap().as_array().unwrap();
+        assert!(required.contains(&serde_json::json!("action")));
+        assert!(required.contains(&serde_json::json!("path")));
+        assert!(m.secrets.is_empty());
+    }
+
+    #[test]
+    fn test_manifest_has_read_write_actions() {
+        let m = manifest();
+        let actions = m.inputs["properties"]["action"]["enum"].as_array().unwrap();
+        let vals: Vec<&str> = actions.iter().map(|v| v.as_str().unwrap()).collect();
+        assert!(vals.contains(&"read"));
+        assert!(vals.contains(&"write"));
+    }
+}

@@ -636,6 +636,25 @@ async fn execute_node(
     let mut input = input;
     resolve_vault_refs(&mut input).await?;
 
+    // Strip secret fields from input JSON and inject as child-process env vars
+    let mut secrets: HashMap<String, String> = HashMap::new();
+    if let Some(obj) = input.as_object() {
+        for name in &bin.manifest.secrets {
+            if let Some(val) = obj.get(name) {
+                let env_val = match val {
+                    Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                secrets.insert(name.clone(), env_val);
+            }
+        }
+    }
+    for name in secrets.keys() {
+        if let Some(obj) = input.as_object_mut() {
+            obj.remove(name.as_str());
+        }
+    }
+
     let mut attempt = 0u32;
     loop {
         let _permit = sem.acquire().await.context("semaphore acquire")?;
@@ -643,6 +662,9 @@ async fn execute_node(
         cmd.stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
+        for (name, val) in &secrets {
+            cmd.env(format!("NGALIR_SECRET_{}", name.to_uppercase()), val);
+        }
 
         let mut child = cmd
             .spawn()

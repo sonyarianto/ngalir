@@ -60,6 +60,15 @@ pub fn fail(code: i32, message: impl AsRef<str>) -> ! {
     std::process::exit(code);
 }
 
+/// Read a secret from the environment (injected by the orchestrator).
+///
+/// Looks up `NGALIR_SECRET_<NAME>` (uppercased). Returns `None` when the
+/// variable is absent, allowing the caller to fall through to a stdin value.
+pub fn read_secret(name: &str) -> Option<String> {
+    let key = format!("NGALIR_SECRET_{}", name.to_uppercase());
+    std::env::var(key).ok()
+}
+
 /// Convenience: read the entire stdin as a JSON `Value`.
 pub fn read_input() -> Value {
     use std::io::Read;
@@ -118,5 +127,38 @@ mod tests {
         assert_ne!(exit_code::GENERIC, exit_code::RETRYABLE);
         assert_ne!(exit_code::RETRYABLE, exit_code::AUTH);
         assert_ne!(exit_code::AUTH, exit_code::INVALID_INPUT);
+    }
+
+    #[test]
+    fn test_read_secret_found() {
+        unsafe {
+            std::env::set_var("NGALIR_SECRET_CONNECTION", "postgres://user:pass@db");
+        }
+        assert_eq!(
+            read_secret("connection").as_deref(),
+            Some("postgres://user:pass@db")
+        );
+        unsafe {
+            std::env::remove_var("NGALIR_SECRET_CONNECTION");
+        }
+    }
+
+    #[test]
+    fn test_read_secret_missing() {
+        unsafe {
+            std::env::remove_var("NGALIR_SECRET_MISSING");
+        }
+        assert!(read_secret("missing").is_none());
+    }
+
+    #[test]
+    fn test_read_secret_empty() {
+        unsafe {
+            std::env::set_var("NGALIR_SECRET_EMPTY", "");
+        }
+        assert_eq!(read_secret("empty").as_deref(), Some(""));
+        unsafe {
+            std::env::remove_var("NGALIR_SECRET_EMPTY");
+        }
     }
 }

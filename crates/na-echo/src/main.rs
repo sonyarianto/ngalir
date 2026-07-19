@@ -45,3 +45,25 @@ fn main() {
     let output = serde_json::json!({ "echo": message });
     println!("{output}");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_structure() {
+        let m = manifest();
+        assert_eq!(m.name, "na-echo");
+        assert!(!m.version.is_empty());
+        assert!(!m.description.is_empty());
+        assert!(m
+            .inputs
+            .get("required")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("message")));
+        assert!(m.secrets.is_empty());
+        assert!(m.idempotent);
+    }
+}

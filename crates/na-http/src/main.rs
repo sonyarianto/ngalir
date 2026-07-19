@@ -76,9 +76,12 @@ async fn run() {
             }
         }
     }
-    if let Some(body) = input.get("body") {
-        if !body.is_null() {
-            req = req.json(body);
+    let body = na_contract::read_secret("body")
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .or_else(|| input.get("body").cloned());
+    if let Some(b) = body {
+        if !b.is_null() {
+            req = req.json(&b);
         }
     }
 
@@ -106,4 +109,24 @@ async fn run() {
         "body": resp_body,
     });
     println!("{output}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_structure() {
+        let m = manifest();
+        assert_eq!(m.name, "na-http");
+        assert!(m
+            .inputs
+            .get("required")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("url")));
+        assert_eq!(m.secrets, vec!["body"]);
+        assert!(!m.idempotent);
+    }
 }

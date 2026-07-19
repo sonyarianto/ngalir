@@ -111,3 +111,104 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_manifest_structure() {
+        let m = manifest();
+        assert_eq!(m.name, "na-vault");
+        let required = m.inputs.get("required").unwrap().as_array().unwrap();
+        assert!(required.contains(&serde_json::json!("ref")));
+        assert!(m.idempotent);
+    }
+
+    #[test]
+    fn test_vault_path_respects_env() {
+        unsafe {
+            std::env::set_var("NGALIR_VAULT_FILE", "/tmp/test-vault.json");
+        }
+        assert_eq!(vault_path(), PathBuf::from("/tmp/test-vault.json"));
+        unsafe {
+            std::env::remove_var("NGALIR_VAULT_FILE");
+        }
+    }
+
+    #[test]
+    fn test_vault_path_default_uses_home() {
+        unsafe {
+            std::env::remove_var("NGALIR_VAULT_FILE");
+        }
+        let home = dirs_fallback();
+        let expected = home.join(".ngalir").join("vault.json");
+        assert_eq!(vault_path(), expected);
+    }
+
+    #[test]
+    fn test_load_vault_file_not_found() {
+        unsafe {
+            std::env::set_var("NGALIR_VAULT_FILE", "/tmp/nonexistent-vault-12345.json");
+        }
+        let vault = load_vault();
+        assert!(vault.is_empty());
+        unsafe {
+            std::env::remove_var("NGALIR_VAULT_FILE");
+        }
+    }
+
+    #[test]
+    fn test_load_vault_invalid_json() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test-vault-bad.json");
+        std::fs::write(&path, "not json").unwrap();
+        unsafe {
+            std::env::set_var("NGALIR_VAULT_FILE", path.to_str().unwrap());
+        }
+        let vault = load_vault();
+        assert!(vault.is_empty());
+        std::fs::remove_file(&path).unwrap();
+        unsafe {
+            std::env::remove_var("NGALIR_VAULT_FILE");
+        }
+    }
+
+    #[test]
+    fn test_load_vault_valid() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test-vault-good.json");
+        let content = r#"{"db/prod": "postgres://user:pass@host/db", "api/key": "sk-12345"}"#;
+        std::fs::write(&path, content).unwrap();
+        unsafe {
+            std::env::set_var("NGALIR_VAULT_FILE", path.to_str().unwrap());
+        }
+        let vault = load_vault();
+        assert_eq!(vault.len(), 2);
+        assert_eq!(
+            vault.get("db/prod").unwrap(),
+            "postgres://user:pass@host/db"
+        );
+        assert_eq!(vault.get("api/key").unwrap(), "sk-12345");
+        std::fs::remove_file(&path).unwrap();
+        unsafe {
+            std::env::remove_var("NGALIR_VAULT_FILE");
+        }
+    }
+
+    #[test]
+    fn test_load_vault_not_an_object() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test-vault-array.json");
+        std::fs::write(&path, "[1,2,3]").unwrap();
+        unsafe {
+            std::env::set_var("NGALIR_VAULT_FILE", path.to_str().unwrap());
+        }
+        let vault = load_vault();
+        assert!(vault.is_empty());
+        std::fs::remove_file(&path).unwrap();
+        unsafe {
+            std::env::remove_var("NGALIR_VAULT_FILE");
+        }
+    }
+}
