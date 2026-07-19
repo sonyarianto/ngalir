@@ -19,3 +19,5 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
 cron = "0.15"
 chrono = "0.4"
+axum = "0.8"
+prometheus = { version = "0.14", features = ["process"] }

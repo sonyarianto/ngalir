@@ -8,14 +8,38 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use na_contract::Manifest;
+use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
 use rhai::{Engine, Scope};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::{Mutex, Semaphore};
+use tracing::{error, info, info_span, warn, Instrument};
+use tracing_subscriber::fmt::format::FmtSpan;
+
+static FLOW_EXECUTIONS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        "ngalir_flow_executions_total",
+        "Total flow executions",
+        &["status"]
+    )
+    .unwrap()
+});
+
+static NODE_EXECUTIONS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        "ngalir_node_executions_total",
+        "Total node executions",
+        &["node_type", "status"]
+    )
+    .unwrap()
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,9 +63,6 @@ where
     Ok(stream)
 }
 use tokio::process::Command;
-use tokio::sync::{Mutex, Semaphore};
-use tracing::{error, info, info_span, warn, Instrument};
-use tracing_subscriber::fmt::format::FmtSpan;
 
 // ── CLI ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +89,9 @@ enum Commands {
         /// JSON input string to inject as `__request__` for the flow
         #[arg(long)]
         input: Option<String>,
+        /// Port for Prometheus metrics HTTP server (disabled if 0)
+        #[arg(long, default_value_t = 0)]
+        metrics_port: u16,
     },
     /// List all available na-* node binaries on PATH / NGALIR_NODE_PATH
     Nodes,
@@ -86,6 +110,7 @@ async fn main() -> Result<()> {
             flow,
             state_dir,
             input,
+            metrics_port,
         } => {
             tracing_subscriber::fmt()
                 .json()
@@ -93,11 +118,32 @@ async fn main() -> Result<()> {
                 .with_writer(std::io::stderr)
                 .try_init()
                 .ok();
+            if metrics_port > 0 {
+                tokio::spawn(async move {
+                    let app = axum::Router::new()
+                        .route("/health", axum::routing::get(|| async { "OK" }))
+                        .route("/metrics", axum::routing::get(metrics_handler));
+                    let addr: SocketAddr = ([0, 0, 0, 0], metrics_port).into();
+                    if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
+                        info!(metrics_port, "orchestrator metrics server starting");
+                        axum::serve(listener, app).await.ok();
+                    }
+                });
+            }
             cmd_run(&flow, state_dir, input).await
         }
         Commands::Nodes => cmd_nodes().await,
         Commands::Validate { flow } => cmd_validate(&flow).await,
     }
+}
+
+// ── Prometheus metrics ─────────────────────────────────────────────────────
+
+async fn metrics_handler() -> String {
+    let encoder = TextEncoder::new();
+    let mut buffer = Vec::new();
+    encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+    String::from_utf8(buffer).unwrap_or_default()
 }
 
 // ── Subcommands ────────────────────────────────────────────────────────────
@@ -519,6 +565,9 @@ async fn execute_flow(
         resumed,
         "flow starting"
     );
+    FLOW_EXECUTIONS.with_label_values(&["started"]).inc();
+    let flow_started = Instant::now();
+    let error_count = 0u64;
 
     while !remaining.is_empty() {
         let ready_idx: Vec<usize> = {
@@ -583,6 +632,14 @@ async fn execute_flow(
     }
 
     info!("flow completed");
+    FLOW_EXECUTIONS.with_label_values(&["completed"]).inc();
+    info!(
+        metric = "flow.duration",
+        duration_ms = flow_started.elapsed().as_millis(),
+        node_count = flow.nodes.len(),
+        error_count,
+        "flow metrics"
+    );
     let final_outputs = outputs.lock().await.clone();
     Ok(final_outputs)
 }
@@ -744,8 +801,16 @@ async fn run_node(
         .instrument(span)
         .await;
     match &result {
-        Ok(_) => info!(duration_ms = started.elapsed().as_millis(), "node ok"),
+        Ok(_) => {
+            NODE_EXECUTIONS
+                .with_label_values(&[&node.use_, "success"])
+                .inc();
+            info!(duration_ms = started.elapsed().as_millis(), "node ok");
+        }
         Err(e) => {
+            NODE_EXECUTIONS
+                .with_label_values(&[&node.use_, "failed"])
+                .inc();
             error!(
                 error = %e,
                 duration_ms = started.elapsed().as_millis(),

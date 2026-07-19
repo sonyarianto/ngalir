@@ -32,7 +32,7 @@ workflows, and scheduled batch jobs.
 |-----|----------------|
 | `na-jsonpath` was dot-path only, now jq-compatible | Upgraded with `.[]`, slices, pipes, object reconstruction |
 | No Docker images or container orchestration | Dockerfile + docker-compose + CI/CD pipeline ready |
-| No Prometheus metrics or health endpoints | No observability in production |
+| No Prometheus metrics or health endpoints | /health + /metrics on webhook, schedule, orchestrator |
 | Large payloads held in memory | OOM on files > 100MB |
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
@@ -97,17 +97,24 @@ Address the remaining gaps between MVP and production-ready system.
 
 **Docker image contains all 15 `na-*` node binaries + `ngalir` orchestrator, ready for flow execution and daemon deployment.**
 
-### 4.3 Observability (metrics & health)
+### 4.3 Observability (metrics & health) ✅ (Complete)
 
-**Problem:** No way to monitor flow execution in production.
+**Prometheus metrics and health endpoints added to all daemon services:**
 
-**Target:**
-- `na-webhook`: `/health` endpoint, `/metrics` (Prometheus) endpoint
-- `na-schedule`: Prometheus counters for triggered / succeeded / failed executions
-- Orchestrator: emit metrics via `tracing` or dedicated metrics crate
-- Flow-level metrics: execution duration, node counts, error rates
-
-**Effort:** 2-3 days.
+- **`na-webhook`**: 
+  - `/health` (200 OK) and `/metrics` (Prometheus text format) endpoints
+  - `na_webhook_flow_executions_total{status}` counter (success / failed / spawn_failed / wait_failed)
+  - Separate metrics server on port 9091 (`--metrics-port`)
+- **`na-schedule`**: 
+  - Embedded metrics HTTP server with `/health` and `/metrics`
+  - `na_schedule_triggers_total{status}` counter (triggered / succeeded / failed / spawn_failed / wait_failed)
+  - `--metrics-port` (default 9092)
+- **Orchestrator (`ngalir`)**:
+  - `ngalir_flow_executions_total{status}` counter (started / completed)
+  - `ngalir_node_executions_total{node_type,status}` counter (success / failed)
+  - Optional `--metrics-port` flag to expose Prometheus HTTP endpoint
+  - Structured `tracing` events with `metric = "flow.duration"`, `duration_ms`, `node_count`, `error_count`
+- Added `prometheus` crate to webhook, schedule, and orchestrator
 
 ### 4.4 Large payload streaming
 

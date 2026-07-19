@@ -1,11 +1,25 @@
+use axum::routing::get;
+use axum::Router;
 use chrono::Utc;
 use clap::Parser;
 use cron::Schedule;
 use na_contract::{print_manifest, Manifest};
+use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
+use std::net::SocketAddr;
 use std::process::Stdio;
 use std::str::FromStr;
+use std::sync::LazyLock;
 use tokio::process::Command;
 use tracing::{error, info};
+
+static SCHEDULE_TRIGGERS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        "na_schedule_triggers_total",
+        "Total scheduled trigger firings",
+        &["status"]
+    )
+    .unwrap()
+});
 
 fn manifest() -> Manifest {
     Manifest {
@@ -49,6 +63,19 @@ struct Cli {
     ngalir_bin: Option<String>,
     #[arg(long, default_value = "{}")]
     input: String,
+    #[arg(long, default_value_t = 9092)]
+    metrics_port: u16,
+}
+
+async fn metrics_handler() -> String {
+    let encoder = TextEncoder::new();
+    let mut buffer = Vec::new();
+    encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+    String::from_utf8(buffer).unwrap_or_default()
+}
+
+async fn health_handler() -> &'static str {
+    "OK"
 }
 
 #[tokio::main]
@@ -70,6 +97,16 @@ async fn main() {
         .with_writer(std::io::stderr)
         .try_init()
         .ok();
+
+    let metrics_addr: SocketAddr = ([0, 0, 0, 0], cli.metrics_port).into();
+    tokio::spawn(async move {
+        let app = Router::new()
+            .route("/health", get(health_handler))
+            .route("/metrics", get(metrics_handler));
+        let listener = tokio::net::TcpListener::bind(metrics_addr).await.unwrap();
+        info!(metrics_port = cli.metrics_port, "metrics server starting");
+        axum::serve(listener, app).await.unwrap();
+    });
 
     let cron_expr = match cli.cron {
         Some(c) => c,
@@ -120,6 +157,7 @@ async fn main() {
         }
 
         info!("cron trigger firing");
+        SCHEDULE_TRIGGERS.with_label_values(&["triggered"]).inc();
         _triggered += 1;
 
         let input_json = if cli.input == "{}" {
@@ -144,18 +182,22 @@ async fn main() {
                 match output {
                     Ok(out) if out.status.success() => {
                         info!("flow execution succeeded");
+                        SCHEDULE_TRIGGERS.with_label_values(&["succeeded"]).inc();
                     }
                     Ok(out) => {
                         let stderr = String::from_utf8_lossy(&out.stderr);
                         error!(stderr = %stderr, "flow execution failed");
+                        SCHEDULE_TRIGGERS.with_label_values(&["failed"]).inc();
                     }
                     Err(e) => {
                         error!(error = %e, "failed to wait for ngalir");
+                        SCHEDULE_TRIGGERS.with_label_values(&["wait_failed"]).inc();
                     }
                 }
             }
             Err(e) => {
                 error!(error = %e, "failed to spawn ngalir");
+                SCHEDULE_TRIGGERS.with_label_values(&["spawn_failed"]).inc();
             }
         }
     }

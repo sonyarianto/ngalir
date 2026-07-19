@@ -19,3 +19,4 @@ clap = { version = "4.6.1", features = ["derive"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
 axum = "0.8"
+prometheus = { version = "0.14", features = ["process"] }

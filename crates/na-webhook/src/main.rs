@@ -1,12 +1,28 @@
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
 use clap::Parser;
 use na_contract::{print_manifest, Manifest};
+use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
 use serde_json::Value;
 use std::net::SocketAddr;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use tokio::process::Command;
 use tracing::{error, info};
+
+static FLOW_EXECUTIONS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        "na_webhook_flow_executions_total",
+        "Total flow executions triggered via webhook",
+        &["status"]
+    )
+    .unwrap()
+});
 
 fn manifest() -> Manifest {
     Manifest {
@@ -50,6 +66,8 @@ struct Cli {
     flow: Option<String>,
     #[arg(long)]
     ngalir_bin: Option<String>,
+    #[arg(long, default_value_t = 9091)]
+    metrics_port: u16,
 }
 
 #[derive(Clone)]
@@ -95,13 +113,36 @@ async fn main() {
 
     let app = Router::new()
         .route(&cli.path, post(handle_webhook))
+        .route("/health", get(health_handler))
+        .route("/metrics", get(metrics_handler))
         .with_state(Arc::new(state));
 
     let addr: SocketAddr = ([0, 0, 0, 0], cli.port).into();
     info!(port = cli.port, path = cli.path, "webhook server starting");
 
+    let metrics_addr: SocketAddr = ([0, 0, 0, 0], cli.metrics_port).into();
+    tokio::spawn(async move {
+        let metrics_app = Router::new()
+            .route("/health", get(health_handler))
+            .route("/metrics", get(metrics_handler));
+        let listener = tokio::net::TcpListener::bind(metrics_addr).await.unwrap();
+        info!(metrics_port = cli.metrics_port, "metrics server starting");
+        axum::serve(listener, metrics_app).await.unwrap();
+    });
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn health_handler() -> StatusCode {
+    StatusCode::OK
+}
+
+async fn metrics_handler() -> String {
+    let encoder = TextEncoder::new();
+    let mut buffer = Vec::new();
+    encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+    String::from_utf8(buffer).unwrap_or_default()
 }
 
 async fn handle_webhook(
@@ -125,6 +166,7 @@ async fn handle_webhook(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| {
+            FLOW_EXECUTIONS.with_label_values(&["spawn_failed"]).inc();
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to spawn ngalir: {e}"),
@@ -132,6 +174,7 @@ async fn handle_webhook(
         })?;
 
     let output = child.wait_with_output().await.map_err(|e| {
+        FLOW_EXECUTIONS.with_label_values(&["wait_failed"]).inc();
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to wait for ngalir: {e}"),
@@ -139,6 +182,7 @@ async fn handle_webhook(
     })?;
 
     if output.status.success() {
+        FLOW_EXECUTIONS.with_label_values(&["success"]).inc();
         let stdout = String::from_utf8_lossy(&output.stdout);
         match serde_json::from_str::<Value>(&stdout) {
             Ok(val) => Ok(Json(val)),
@@ -148,6 +192,7 @@ async fn handle_webhook(
             )),
         }
     } else {
+        FLOW_EXECUTIONS.with_label_values(&["failed"]).inc();
         let stderr = String::from_utf8_lossy(&output.stderr);
         error!(stderr = %stderr, "flow execution failed");
         Err((
