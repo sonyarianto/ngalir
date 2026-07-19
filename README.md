@@ -176,15 +176,8 @@ Minimal example: see `crates/na-echo/src/main.rs`.
 
 ## Roadmap
 
-Ngalir is evolving from a DAG engine to an **AI-native workflow studio**:
-
-- **6.1** Node Skills Registry — structured LLM-readable metadata for all nodes
-- **6.2** AI Flow Generator — `ngalir generate` turns natural language into YAML
-- **6.3** Web UI — visual flow editor with drag-and-drop, live execution view
-- **6.4** Flow Preview & Debug — inline node preview, step-through, snapshot diff
-- **6.5** AI-Powered Optimization — suggestions for parallelism, caching, retry
-
-See [ROADMAP.md](docs/ROADMAP.md) for the full plan.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan. Phase 4 (Production
+Polish) is complete; Phase 6 (AI-Native Workflow Studio) is next.
 
 ## Documentation
 
