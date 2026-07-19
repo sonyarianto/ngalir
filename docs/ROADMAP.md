@@ -18,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 92 unit + integration tests across all crates
-- ✅ 17 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets
+- ✅ 18 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
 - ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
@@ -36,7 +36,6 @@ workflows, and scheduled batch jobs.
 | Large payloads held in memory | OOM on files > 100MB |
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
-| No `na-llm` node | Requested by early users |
 | No Web UI or AI workflow generation | Steep learning curve for non-devs |
 
 ---
@@ -143,18 +142,14 @@ downstream nodes. Files > 100MB cause OOM.
 
 **Effort:** 4-5 days.
 
-### 4.6 `na-llm` node
+### 4.6 `na-llm` node ✅ (Complete)
 
-**Problem:** Early users request LLM API integration (OpenAI, Anthropic, local).
-
-**Target:**
-- `na-llm` node that calls OpenAI / Anthropic / compatible API
-- Configurable model, prompt, temperature, max_tokens
-- Supports `messages` array for chat completions
-- API key via secrets/env vars (`NGALIR_SECRET_OPENAI_API_KEY`)
-- Streaming support for SSE-based LLM responses
-
-**Effort:** 3-4 days.
+**LLM chat completion node implemented:**
+- OpenAI / Anthropic / compatible API via `/chat/completions` endpoint
+- Configurable: model, messages array, prompt shortcut, temperature, max_tokens, api_base
+- API key via `api_key` input field or `NGALIR_SECRET_API_KEY` env var (vault integration)
+- `streaming: true` — outputs single JSON with content, model, and usage stats
+- 8 unit tests covering: manifest, describe, messages/prompt building, request serialization, input validation
 
 ---
 
