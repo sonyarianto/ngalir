@@ -15,6 +15,7 @@ members = [
     "crates/na-schedule",
     "crates/na-email",
     "crates/na-csv",
+    "crates/na-excel",
 ]
 
 [workspace.package]
