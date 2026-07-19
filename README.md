@@ -57,13 +57,7 @@ Run `ngalir nodes` to list all `na-*` binaries on your `PATH`. Nodes are
 discovered dynamically — add new ones by placing `na-<name>` anywhere on
 `PATH` or `NGALIR_NODE_PATH`.
 
-Current curated node set (all in `crates/`):
-
-- **Core**: echo, file, http, jsonpath, vault
-- **Database**: db-postgres, db-mysql, db-sqlite  
-- **Data processing**: csv, excel, google-sheets
-- **AI**: llm (OpenAI / Anthropic / compatible)
-- **Triggers**: webhook (HTTP server), schedule (cron), email (SMTP)
+See [docs/NODES.md](docs/NODES.md) for detailed descriptions of every node.
 
 ## Writing a flow
 
