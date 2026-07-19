@@ -33,7 +33,7 @@ workflows, and scheduled batch jobs.
 | `na-jsonpath` was dot-path only, now jq-compatible | Upgraded with `.[]`, slices, pipes, object reconstruction |
 | No Docker images or container orchestration | Dockerfile + docker-compose + CI/CD pipeline ready |
 | No Prometheus metrics or health endpoints | /health + /metrics on webhook, schedule, orchestrator |
-| Large payloads held in memory | OOM on files > 100MB |
+| Large payloads held in memory | output_mode: file transports via temp files |
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
 | No Web UI or AI workflow generation | Steep learning curve for non-devs |
@@ -116,18 +116,22 @@ Address the remaining gaps between MVP and production-ready system.
   - Structured `tracing` events with `metric = "flow.duration"`, `duration_ms`, `node_count`, `error_count`
 - Added `prometheus` crate to webhook, schedule, and orchestrator
 
-### 4.4 Large payload streaming
+### 4.4 Large payload streaming ✅ (Complete)
 
-**Problem:** All node output is buffered in memory before passing to
-downstream nodes. Files > 100MB cause OOM.
+**File-based output transport to avoid in-memory buffering:**
 
-**Target:**
-- `Manifest` gains optional `output_mode: "file"` field
-- Nodes write large outputs to temp files instead of stdout
-- Orchestrator passes file paths instead of in-memory JSON between nodes
-- Streaming nodes (webhook, schedule) use temp file transport for >1MB payloads
-
-**Effort:** 3-5 days.
+- `Manifest.output_mode: Option<String>` — `"file"` enables file-based transport
+- Orchestrator creates a temp output dir per flow execution
+- Sets `NGALIR_OUTPUT_DIR` env var for nodes with `output_mode: "file"`
+- Node writes output to file in that dir, emits file path to stdout
+- Orchestrator reads `__file__`-tagged output via `resolve_file_output()`:
+  - Handles both bare path strings and `{"__file__": "/path"}` objects
+  - Recursively resolves nested file references
+- **`na-file`** updated to use `output_mode: "file"`:
+  - Large reads write to temp file instead of stdout pipe
+  - Orchestrator reads from file on disk, reducing pipe memory pressure
+- All existing nodes get `output_mode: None` (defaults to stdout transport)
+- `Manifest` deserialization backward-compatible (serde default for new field)
 
 ### 4.5 Flow composition (subflows / includes)
 

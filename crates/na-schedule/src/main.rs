@@ -44,6 +44,7 @@ fn manifest() -> Manifest {
         secrets: vec![],
         streaming: true,
         idempotent: false,
+        output_mode: None,
     }
 }
 

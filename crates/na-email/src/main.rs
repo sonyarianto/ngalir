@@ -30,6 +30,7 @@ fn manifest() -> Manifest {
         secrets: vec!["password".to_string()],
         streaming: false,
         idempotent: true,
+        output_mode: None,
     }
 }
 

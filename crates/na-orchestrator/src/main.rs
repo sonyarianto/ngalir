@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Instant;
@@ -539,6 +539,9 @@ async fn execute_flow(
     let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(merged));
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
 
+    let output_dir = tempfile::TempDir::new()?;
+    let output_dir_path = Arc::new(output_dir.path().to_path_buf());
+
     // Remove already-checkpointed nodes from the worklist
     let resumed = store.path.is_some();
     if resumed {
@@ -616,8 +619,9 @@ async fn execute_flow(
                 .get(&node.use_)
                 .cloned()
                 .with_context(|| format!("unknown node type '{}'", node.use_))?;
+            let output_dir = output_dir_path.clone();
             handles.push(tokio::spawn(async move {
-                run_node(&node, &bin, input, sem).await
+                run_node(&node, &bin, input, sem, &output_dir).await
             }));
         }
 
@@ -645,6 +649,35 @@ async fn execute_flow(
 }
 
 // ── DAG helpers ────────────────────────────────────────────────────────────
+
+/// Resolve a `__file__`-tagged output by reading the file contents.
+fn resolve_file_output(val: Value) -> Value {
+    if let Some(file_path) = val.as_str() {
+        if let Ok(content) = std::fs::read_to_string(file_path) {
+            if let Ok(parsed) = serde_json::from_str::<Value>(&content) {
+                return parsed;
+            }
+        }
+        return val;
+    }
+    if let Some(obj) = val.as_object() {
+        let mut new_obj = serde_json::Map::new();
+        for (k, v) in obj {
+            if k == "__file__" {
+                if let Some(path) = v.as_str() {
+                    if let Ok(content) = std::fs::read_to_string(path) {
+                        if let Ok(parsed) = serde_json::from_str::<Value>(&content) {
+                            return parsed;
+                        }
+                    }
+                }
+            }
+            new_obj.insert(k.clone(), resolve_file_output(v.clone()));
+        }
+        return Value::Object(new_obj);
+    }
+    val
+}
 
 fn deps_satisfied(node: &NodeSpec, outputs: &HashMap<String, Value>) -> bool {
     node.inputs
@@ -792,12 +825,13 @@ async fn run_node(
     bin: &NodeBin,
     input: Value,
     sem: Arc<Semaphore>,
+    output_dir: &Path,
 ) -> Result<(String, Value)> {
     let span = info_span!("node", id = %node.id, node_type = %node.use_);
     let started = Instant::now();
     let node = node.clone();
     let bin = bin.clone();
-    let result = async { execute_node(&node, &bin, input, sem).await }
+    let result = async { execute_node(&node, &bin, input, sem, output_dir).await }
         .instrument(span)
         .await;
     match &result {
@@ -826,6 +860,7 @@ async fn execute_node(
     bin: &NodeBin,
     input: Value,
     sem: Arc<Semaphore>,
+    output_dir: &Path,
 ) -> Result<(String, Value)> {
     let on_error = node.on_error.as_deref().unwrap_or("stop");
     let max_retries = on_error
@@ -866,6 +901,12 @@ async fn execute_node(
         for (name, val) in &secrets {
             cmd.env(format!("NGALIR_SECRET_{}", name.to_uppercase()), val);
         }
+        if bin.manifest.output_is_file() {
+            cmd.env(
+                "NGALIR_OUTPUT_DIR",
+                output_dir.to_string_lossy().to_string(),
+            );
+        }
 
         let mut child = cmd
             .spawn()
@@ -891,7 +932,11 @@ async fn execute_node(
 
             let status = child.wait().await?;
             if status.success() {
-                let val = json!({"stream": stream});
+                let val = if bin.manifest.output_is_file() {
+                    resolve_file_output(json!({"stream": stream}))
+                } else {
+                    json!({"stream": stream})
+                };
                 return Ok((node.id.clone(), val));
             }
             let code = status.code().unwrap_or(1);
@@ -931,6 +976,11 @@ async fn execute_node(
             if out.status.success() {
                 let val: Value = serde_json::from_slice(&out.stdout)
                     .with_context(|| format!("parse output of node {}", node.id))?;
+                let val = if bin.manifest.output_is_file() {
+                    resolve_file_output(val)
+                } else {
+                    val
+                };
                 return Ok((node.id.clone(), val));
             }
 

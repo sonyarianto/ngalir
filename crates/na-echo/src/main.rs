@@ -22,6 +22,7 @@ fn manifest() -> Manifest {
         secrets: vec![],
         streaming: false,
         idempotent: true,
+        output_mode: None,
     }
 }
 

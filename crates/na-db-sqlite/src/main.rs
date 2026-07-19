@@ -25,6 +25,7 @@ fn manifest() -> Manifest {
         secrets: vec!["connection".into()],
         streaming: false,
         idempotent: false,
+        output_mode: None,
     }
 }
 

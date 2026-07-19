@@ -31,6 +31,32 @@ pub struct Manifest {
     /// Hint: safe to retry on transient failure.
     #[serde(default)]
     pub idempotent: bool,
+    /// Output transport: "stdout" (default, JSON via stdout) or "file" (write to NGALIR_OUTPUT_DIR, emit file path).
+    #[serde(default)]
+    pub output_mode: Option<String>,
+}
+
+impl Default for Manifest {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            version: String::new(),
+            description: String::new(),
+            inputs: Value::Null,
+            outputs: Value::Null,
+            secrets: Vec::new(),
+            streaming: false,
+            idempotent: false,
+            output_mode: None,
+        }
+    }
+}
+
+impl Manifest {
+    /// Returns true if the node uses file-based output transport.
+    pub fn output_is_file(&self) -> bool {
+        self.output_mode.as_deref() == Some("file")
+    }
 }
 
 /// Standardized process exit codes.
@@ -101,6 +127,7 @@ mod tests {
             secrets: vec!["password".into()],
             streaming: true,
             idempotent: false,
+            output_mode: Some("stdout".into()),
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Manifest = serde_json::from_str(&json).unwrap();
@@ -120,6 +147,7 @@ mod tests {
         assert!(m.secrets.is_empty());
         assert!(!m.streaming);
         assert!(!m.idempotent);
+        assert_eq!(m.output_mode, None);
     }
 
     #[test]

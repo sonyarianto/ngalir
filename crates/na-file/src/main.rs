@@ -1,6 +1,5 @@
-//! Ngalir file I/O node.
-
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
+use std::path::PathBuf;
 
 fn manifest() -> Manifest {
     Manifest {
@@ -26,6 +25,25 @@ fn manifest() -> Manifest {
         secrets: vec![],
         streaming: false,
         idempotent: false,
+        output_mode: Some("file".into()),
+    }
+}
+
+fn output_file_path() -> Option<PathBuf> {
+    std::env::var("NGALIR_OUTPUT_DIR")
+        .ok()
+        .map(|d| PathBuf::from(d).join("output.json"))
+}
+
+fn write_output(val: serde_json::Value) {
+    if let Some(out_path) = output_file_path() {
+        let json = serde_json::to_string(&val).expect("serialize");
+        std::fs::write(&out_path, &json).unwrap_or_else(|e| {
+            fail(exit_code::GENERIC, format!("write output file failed: {e}"));
+        });
+        println!("{}", out_path.display());
+    } else {
+        println!("{val}");
     }
 }
 
@@ -55,7 +73,7 @@ fn main() {
             });
             let bytes = content.len();
             let out = serde_json::json!({"content": content, "bytes": bytes});
-            println!("{out}");
+            write_output(out);
         }
         "write" => {
             let content = input["content"].as_str().unwrap_or("");
@@ -66,7 +84,7 @@ fn main() {
                 fail(exit_code::GENERIC, format!("write failed: {e}"));
             });
             let out = serde_json::json!({"bytes": content.len()});
-            println!("{out}");
+            write_output(out);
         }
         _ => fail(exit_code::INVALID_INPUT, "action must be 'read' or 'write'"),
     }
@@ -84,6 +102,7 @@ mod tests {
         assert!(required.contains(&serde_json::json!("action")));
         assert!(required.contains(&serde_json::json!("path")));
         assert!(m.secrets.is_empty());
+        assert_eq!(m.output_mode, Some("file".into()));
     }
 
     #[test]

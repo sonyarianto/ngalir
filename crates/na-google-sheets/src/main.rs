@@ -31,6 +31,7 @@ fn manifest() -> Manifest {
         secrets: vec!["credentials".into()],
         streaming: true,
         idempotent: true,
+        output_mode: None,
     }
 }
 

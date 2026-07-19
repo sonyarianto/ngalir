@@ -29,6 +29,7 @@ fn manifest() -> Manifest {
         secrets: vec!["body".into()],
         streaming: false,
         idempotent: false,
+        output_mode: None,
     }
 }
 
