@@ -26,5 +26,6 @@ axum = { version = "0.8", features = ["ws"] }
 tower-http = { version = "0.6", features = ["fs"] }
 tempfile = "3.27.0"
 uuid = { version = "1", features = ["v4"] }
+dirs = "6"
 
 [dev-dependencies]

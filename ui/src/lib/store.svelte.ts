@@ -9,6 +9,9 @@ let running = $state(false)
 let stepMode = $state(false)
 let stepReady = $state(false)
 let currentFlowId = $state('')
+let savedFlows = $state<{ name: string; modified: string }[]>([])
+let showFlowList = $state(false)
+let draggingWire = $state<{ fromNodeId: string; fromPort: string; mouseX: number; mouseY: number } | null>(null)
 let ws: WebSocket | null = $state(null)
 
 function connectWs() {
@@ -126,6 +129,48 @@ function resetStatus() {
   for (const n of nodes) delete n.status
 }
 
+async function saveFlow() {
+  const flow = JSON.parse(exportFlow())
+  const res = await fetch('/api/flows', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(flow),
+  })
+  if (res.ok) {
+    const data = await res.json()
+    flowName = data.name
+    await listFlows()
+  }
+}
+
+async function loadFlow(name: string) {
+  const res = await fetch(`/api/flows/${encodeURIComponent(name)}`)
+  if (!res.ok) return
+  const flow = await res.json()
+  flowName = flow.name || name
+  nodes = (flow.nodes || []).map((n: CanvasNode, i: number) => ({
+    ...n,
+    position: n.position || { x: 100 + i * 40, y: 100 + i * 80 },
+    with: n.with || {},
+    inputs: n.inputs || {},
+  }))
+  wires = []
+  showFlowList = false
+}
+
+async function deleteFlow(name: string) {
+  const res = await fetch(`/api/flows/${encodeURIComponent(name)}`, { method: 'DELETE' })
+  if (res.ok) await listFlows()
+}
+
+async function listFlows() {
+  const res = await fetch('/api/flows')
+  if (!res.ok) return
+  const data = await res.json()
+  savedFlows = data.flows || []
+  showFlowList = true
+}
+
 function addNode(type: string, position: { x: number; y: number }) {
   const id = `${type}-${nodes.length + 1}`
   nodes.push({
@@ -164,11 +209,45 @@ function updateNodeProp(id: string, key: string, value: unknown) {
 }
 
 function addWire(wire: Wire) {
+  // Update target node's inputs
+  const target = nodes.find((n) => n.id === wire.to.nodeId)
+  if (target) {
+    if (!target.inputs) target.inputs = {}
+    ;(target.inputs as Record<string, string>)[wire.to.port] = `${wire.from.nodeId}.${wire.from.port}`
+  }
   wires = [...wires, wire]
 }
 
 function removeWire(id: string) {
+  const wire = wires.find((w) => w.id === id)
+  if (wire) {
+    const target = nodes.find((n) => n.id === wire.to.nodeId)
+    if (target && target.inputs) {
+      delete (target.inputs as Record<string, string>)[wire.to.port]
+    }
+  }
   wires = wires.filter((w) => w.id !== id)
+}
+
+function startDragWire(fromNodeId: string, fromPort: string, mouseX: number, mouseY: number) {
+  draggingWire = { fromNodeId, fromPort, mouseX, mouseY }
+}
+
+function updateDragWire(mouseX: number, mouseY: number) {
+  if (draggingWire) draggingWire = { ...draggingWire, mouseX, mouseY }
+}
+
+function endDragWire(targetNodeId?: string, targetPort?: string) {
+  if (!draggingWire) return
+  if (targetNodeId && targetPort && targetNodeId !== draggingWire.fromNodeId) {
+    const id = `${draggingWire.fromNodeId}-${draggingWire.fromPort}-${targetNodeId}-${targetPort}`
+    addWire({
+      id,
+      from: { nodeId: draggingWire.fromNodeId, port: draggingWire.fromPort, label: draggingWire.fromPort, type: 'output' },
+      to: { nodeId: targetNodeId, port: targetPort, label: targetPort, type: 'input' },
+    })
+  }
+  draggingWire = null
 }
 
 function exportFlow(): string {
@@ -227,8 +306,12 @@ export function getStore() {
     get running() { return running },
     get stepMode() { return stepMode },
     get stepReady() { return stepReady },
+    get savedFlows() { return savedFlows },
+    get showFlowList() { return showFlowList },
+    get draggingWire() { return draggingWire },
     set flowName(v: string) { flowName = v },
     set filename(v: string) { filename = v },
+    set showFlowList(v: boolean) { showFlowList = v },
     addNode,
     removeNode,
     selectNode,
@@ -236,6 +319,9 @@ export function getStore() {
     updateNodeProp,
     addWire,
     removeWire,
+    startDragWire,
+    updateDragWire,
+    endDragWire,
     exportFlow,
     importFlow,
     loadSample,
@@ -245,5 +331,9 @@ export function getStore() {
     stepStop,
     resetStatus,
     connectWs,
+    saveFlow,
+    loadFlow,
+    deleteFlow,
+    listFlows,
   }
 }

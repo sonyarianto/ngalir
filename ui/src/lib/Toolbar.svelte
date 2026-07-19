@@ -32,8 +32,10 @@
   <span class="font-bold text-lg text-[#7c3aed]">Ngalir</span>
   <span class="text-sm opacity-60">{store.flowName}</span>
   <div class="flex-1" />
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.listFlows()}>Flows</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleLoad}>Open</button>
-  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleSave}>Save</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleSave}>Download</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.saveFlow()}>Save</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.loadSample()}>Sample</button>
   {#if store.stepReady}
     <button class="px-3 py-1 border border-green-500 rounded bg-green-700 text-sm cursor-pointer hover:bg-green-600" onclick={() => store.stepContinue()}>Continue</button>
@@ -45,3 +47,22 @@
     <span class="text-sm text-yellow-400">Running{store.stepMode ? '…' : ''}</span>
   {/if}
 </header>
+
+{#if store.showFlowList}
+  <div class="absolute top-12 left-2 z-50 bg-[#1a1a2e] border border-[#444] rounded shadow-xl w-64 max-h-80 overflow-y-auto">
+    <div class="flex items-center justify-between px-3 py-2 border-b border-[#333]">
+      <span class="text-xs text-[#7c3aed] uppercase tracking-wider">Saved Flows</span>
+      <button class="text-[#888] text-xs cursor-pointer hover:text-[#ccc]" onclick={() => store.showFlowList = false}>✕</button>
+    </div>
+    {#if store.savedFlows.length === 0}
+      <p class="px-3 py-4 text-xs text-[#555] text-center">No saved flows</p>
+    {:else}
+      {#each store.savedFlows as f}
+        <div class="flex items-center gap-2 px-3 py-2 border-b border-[#2a2a3e] hover:bg-[#2a2a3e]">
+          <button class="flex-1 text-left text-xs text-[#ccc] cursor-pointer" onclick={() => store.loadFlow(f.name)}>{f.name}</button>
+          <button class="text-[#ef4444] text-xs cursor-pointer hover:text-red-300" onclick={() => store.deleteFlow(f.name)}>x</button>
+        </div>
+      {/each}
+    {/if}
+  </div>
+{/if}

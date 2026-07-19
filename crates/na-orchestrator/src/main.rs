@@ -650,6 +650,7 @@ struct AppState {
     tx: broadcast::Sender<FlowEvent>,
     step_tx: broadcast::Sender<StepCommand>,
     snapshots: Arc<Mutex<Vec<Snapshot>>>,
+    flows_dir: PathBuf,
 }
 
 #[derive(Clone)]
@@ -663,10 +664,16 @@ type EventFn = dyn Fn(&str, Option<&str>, Option<&Value>, Option<&str>) + Send +
 async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
     let (tx, _) = broadcast::channel(256);
     let (step_tx, _) = broadcast::channel(256);
+    let flows_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("ngalir")
+        .join("flows");
+    std::fs::create_dir_all(&flows_dir).ok();
     let state = AppState {
         tx,
         step_tx,
         snapshots: Arc::new(Mutex::new(Vec::new())),
+        flows_dir,
     };
 
     let assets = ServeDir::new(ui_dir).append_index_html_on_directories(true);
@@ -677,6 +684,18 @@ async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
         .route("/api/skills", axum::routing::get(api_skills))
         .route("/api/health", axum::routing::get(|| async { "OK" }))
         .route("/api/run", axum::routing::post(api_run))
+        .route("/api/generate", axum::routing::post(api_generate))
+        .route("/api/validate", axum::routing::post(api_validate))
+        .route(
+            "/api/flows",
+            axum::routing::get(api_flows_list).post(api_flows_save),
+        )
+        .route(
+            "/api/flows/{name}",
+            axum::routing::get(api_flows_get)
+                .put(api_flows_update)
+                .delete(api_flows_delete),
+        )
         .route("/api/snapshots", axum::routing::get(api_snapshots))
         .route(
             "/api/snapshots/diff",
@@ -898,6 +917,250 @@ async fn api_snapshots_diff(
     Ok(axum::Json(DiffResponse { from, to, diffs }))
 }
 
+// ── Flow CRUD ───────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct FlowMeta {
+    name: String,
+    modified: String,
+}
+
+#[derive(Serialize)]
+struct FlowsListResponse {
+    flows: Vec<FlowMeta>,
+}
+
+async fn api_flows_list(State(state): State<AppState>) -> axum::Json<FlowsListResponse> {
+    let mut flows = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&state.flows_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "json") {
+                if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
+                    let modified = path
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| {
+                            t.duration_since(std::time::UNIX_EPOCH)
+                                .ok()
+                                .map(|d| d.as_secs().to_string())
+                        })
+                        .unwrap_or_default();
+                    flows.push(FlowMeta {
+                        name: name.to_string(),
+                        modified,
+                    });
+                }
+            }
+        }
+    }
+    flows.sort_by(|a, b| b.modified.cmp(&a.modified));
+    axum::Json(FlowsListResponse { flows })
+}
+
+#[derive(Serialize)]
+struct FlowSaveResponse {
+    name: String,
+}
+
+async fn api_flows_save(
+    State(state): State<AppState>,
+    axum::Json(flow): axum::Json<FlowSpec>,
+) -> Result<axum::Json<FlowSaveResponse>, axum::http::StatusCode> {
+    let name = if flow.name.is_empty() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        flow.name.clone()
+    };
+    let path = state.flows_dir.join(format!("{name}.json"));
+    let content = serde_json::to_string_pretty(&flow)
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::write(&path, content).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(axum::Json(FlowSaveResponse { name }))
+}
+
+async fn api_flows_get(
+    State(state): State<AppState>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<axum::Json<FlowSpec>, axum::http::StatusCode> {
+    let path = state.flows_dir.join(format!("{name}.json"));
+    let content = std::fs::read_to_string(&path).map_err(|_| axum::http::StatusCode::NOT_FOUND)?;
+    let flow: FlowSpec = serde_json::from_str(&content)
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(axum::Json(flow))
+}
+
+#[derive(Deserialize)]
+struct FlowUpdate {
+    flow: FlowSpec,
+}
+
+async fn api_flows_update(
+    State(state): State<AppState>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+    axum::Json(req): axum::Json<FlowUpdate>,
+) -> Result<axum::Json<FlowSaveResponse>, axum::http::StatusCode> {
+    let path = state.flows_dir.join(format!("{name}.json"));
+    if !path.exists() {
+        return Err(axum::http::StatusCode::NOT_FOUND);
+    }
+    let content = serde_json::to_string_pretty(&req.flow)
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    std::fs::write(&path, content).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(axum::Json(FlowSaveResponse { name }))
+}
+
+async fn api_flows_delete(
+    State(state): State<AppState>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
+    let path = state.flows_dir.join(format!("{name}.json"));
+    if !path.exists() {
+        return Err(axum::http::StatusCode::NOT_FOUND);
+    }
+    std::fs::remove_file(&path).map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(axum::Json(serde_json::json!({"deleted": name})))
+}
+
+// ── API Generate & Validate ─────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct GenerateRequest {
+    prompt: String,
+    #[serde(default)]
+    model: Option<String>,
+}
+
+async fn api_generate(
+    State(_state): State<AppState>,
+    axum::Json(req): axum::Json<GenerateRequest>,
+) -> Result<axum::Json<serde_json::Value>, axum::http::StatusCode> {
+    let registry = skills_registry_json()
+        .await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let system_prompt = format!(
+        "You are Ngalir, a workflow automation engine. \
+        Generate a YAML flow spec for the given task.\n\n\
+        Available nodes:\n{registry}\n\n\
+        Output ONLY valid YAML between ```yaml and ``` markers."
+    );
+
+    let llm_input = json!({
+        "model": req.model.unwrap_or_else(|| "gpt-4o".to_string()),
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": req.prompt}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 4096,
+    });
+
+    let bin = discover_node("llm")
+        .await
+        .map_err(|_| axum::http::StatusCode::SERVICE_UNAVAILABLE)?;
+    let result = call_node(&bin.binary, &llm_input)
+        .await
+        .map_err(|_| axum::http::StatusCode::SERVICE_UNAVAILABLE)?;
+    let raw = result["content"].as_str().unwrap_or("").to_string();
+
+    let yaml = if let Some(start) = raw.find("```yaml") {
+        let body = &raw[start + 7..];
+        if let Some(end) = body.find("```") {
+            body[..end].trim()
+        } else {
+            body.trim()
+        }
+    } else {
+        raw.trim()
+    };
+
+    Ok(axum::Json(serde_json::json!({
+        "yaml": yaml,
+        "raw": raw,
+    })))
+}
+
+#[derive(Deserialize)]
+struct ValidateRequest {
+    flow: FlowSpec,
+}
+
+#[derive(Serialize)]
+struct ValidateIssue {
+    node_id: String,
+    severity: String,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct ValidateResponse {
+    valid: bool,
+    issues: Vec<ValidateIssue>,
+}
+
+async fn api_validate(
+    State(_state): State<AppState>,
+    axum::Json(req): axum::Json<ValidateRequest>,
+) -> axum::Json<ValidateResponse> {
+    let mut issues = Vec::new();
+
+    match check_cycles(&req.flow.nodes) {
+        Ok(()) => {}
+        Err(e) => issues.push(ValidateIssue {
+            node_id: "flow".into(),
+            severity: "error".into(),
+            message: e.to_string(),
+        }),
+    }
+
+    // Check for duplicate node IDs
+    let mut seen = std::collections::HashSet::new();
+    for node in &req.flow.nodes {
+        if !seen.insert(node.id.clone()) {
+            issues.push(ValidateIssue {
+                node_id: node.id.clone(),
+                severity: "error".into(),
+                message: format!("duplicate node id '{}'", node.id),
+            });
+        }
+    }
+
+    // Validate inputs reference existing nodes
+    for node in &req.flow.nodes {
+        for (key, refstr) in &node.inputs {
+            let upstream = upstream_of(refstr);
+            if !req.flow.nodes.iter().any(|n| n.id == upstream) {
+                issues.push(ValidateIssue {
+                    node_id: node.id.clone(),
+                    severity: "error".into(),
+                    message: format!("input '{}' references unknown node '{}'", key, upstream),
+                });
+            }
+        }
+    }
+
+    // Check that required nodes are available
+    for node in &req.flow.nodes {
+        if !node.use_.starts_with('@') {
+            match discover_node(&node.use_).await {
+                Ok(_) => {}
+                Err(_) => issues.push(ValidateIssue {
+                    node_id: node.id.clone(),
+                    severity: "warning".into(),
+                    message: format!("node type 'na-{}' not found on PATH", node.use_),
+                }),
+            }
+        }
+    }
+
+    axum::Json(ValidateResponse {
+        valid: issues.is_empty(),
+        issues,
+    })
+}
+
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
@@ -981,7 +1244,7 @@ async fn api_skills() -> axum::Json<Vec<serde_json::Value>> {
 
 // ── Flow Spec types ────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct FlowSpec {
     version: u32,
     name: String,
@@ -996,7 +1259,7 @@ fn default_concurrency() -> usize {
     8
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct NodeSpec {
     id: String,
     #[serde(rename = "use")]

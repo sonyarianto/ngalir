@@ -11,6 +11,17 @@
   let offsetY = $state(0)
   let el: HTMLElement | undefined = $state()
 
+  const PORT_SPACING = 20
+  const HEADER_H = 24
+  const NODE_W = 160
+
+  const inputPorts = $derived(Object.keys(node.inputs ?? {}))
+  const outputPorts = $derived(['output'])
+
+  function portY(index: number, total: number) {
+    return HEADER_H + 4 + index * PORT_SPACING + PORT_SPACING / 2
+  }
+
   function handleMouseDown(e: MouseEvent) {
     e.stopPropagation()
     store.selectNode(node.id)
@@ -33,6 +44,19 @@
 
   function handleMouseUp() {
     dragging = false
+  }
+
+  function handlePortMouseDown(e: MouseEvent, port: string) {
+    e.stopPropagation()
+    const parent = el?.parentElement
+    if (!parent) return
+    const pr = parent.getBoundingClientRect()
+    store.startDragWire(node.id, port, e.clientX - pr.left, e.clientY - pr.top)
+  }
+
+  function handlePortMouseUp(e: MouseEvent, port: string) {
+    e.stopPropagation()
+    store.endDragWire(node.id, port)
   }
 </script>
 
@@ -61,11 +85,28 @@
       />
     {/if}
   </div>
-  <div class="px-2 py-1 text-[#aaa]">
+  <div class="px-2 py-1 text-[#aaa] min-h-[24px]">
     <span class="block text-[10px] text-[#888] mb-1">{node.id}</span>
-    {#each Object.entries(node.inputs ?? {}) as [k, v]}
-      <div class="flex items-center gap-1 text-[11px] text-[#999]">
-        <span class="w-1.5 h-1.5 rounded-full bg-[#7c3aed] inline-block" />{k} ← {v}
+    {#each inputPorts as port, i}
+      <div class="flex items-center gap-1 text-[11px] text-[#999] relative">
+        <span
+          class="w-1.5 h-1.5 rounded-full bg-[#7c3aed] inline-block cursor-crosshair z-20"
+          data-port-input
+          data-node-id={node.id}
+          data-port={port}
+          onmouseup={(e) => handlePortMouseUp(e, port)}
+        />{port} ← {(node.inputs as Record<string, string>)?.[port] ?? ''}
+      </div>
+    {/each}
+    {#each outputPorts as port, i}
+      <div class="flex items-center justify-end gap-1 text-[11px] text-[#999] relative">
+        <span class="flex-1" />
+        <span
+          class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block cursor-crosshair z-20"
+          data-port-output
+          data-node-id={node.id}
+          onmousedown={(e) => handlePortMouseDown(e, port)}
+        />
       </div>
     {/each}
   </div>
