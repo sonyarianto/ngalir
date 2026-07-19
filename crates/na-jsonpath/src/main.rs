@@ -5,9 +5,9 @@ use serde_json::Value;
 
 fn manifest() -> Manifest {
     Manifest {
-        name: "na-jq".to_string(),
+        name: "na-jsonpath".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        description: "Extract a value from JSON via dot-path syntax (e.g. rows.0.name)."
+        description: "Extract / transform JSON via simple path expressions (e.g. rows.0.name)."
             .to_string(),
         inputs: serde_json::json!({
             "type": "object",

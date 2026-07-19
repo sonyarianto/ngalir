@@ -1326,7 +1326,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "na-jq"
+name = "na-jsonpath"
 version = "0.1.0"
 dependencies = [
  "na-contract",
@@ -1341,7 +1341,6 @@ dependencies = [
  "clap",
  "jsonschema",
  "na-contract",
- "na-echo",
  "serde",
  "serde_json",
  "serde_yaml",

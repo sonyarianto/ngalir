@@ -70,12 +70,14 @@ async fn main() -> Result<()> {
 
 async fn cmd_run(path: &str) -> Result<()> {
     let flow: FlowSpec = parse_flow(path)?;
+    check_cycles(&flow.nodes)?;
     let node_bins = preflight(&flow).await?;
     execute_flow(&flow, &node_bins).await
 }
 
 async fn cmd_validate(path: &str) -> Result<()> {
     let flow: FlowSpec = parse_flow(path)?;
+    check_cycles(&flow.nodes)?;
     let bins = preflight(&flow).await?;
     println!("Flow '{}' is valid.", flow.name);
     println!("Node types required:");
@@ -286,6 +288,83 @@ fn is_executable(entry: &std::fs::DirEntry) -> bool {
     entry.metadata().map(|m| m.is_file()).unwrap_or(false)
 }
 
+// ── Cycle detection ───────────────────────────────────────────────────────
+
+fn check_cycles(nodes: &[NodeSpec]) -> Result<()> {
+    // Map node id -> index for fast lookup
+    let idx_of: HashMap<&str, usize> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.id.as_str(), i))
+        .collect();
+
+    // Build adjacency list using indices
+    let deps_of: Vec<Vec<usize>> = nodes
+        .iter()
+        .map(|n| {
+            n.inputs
+                .values()
+                .filter_map(|r| idx_of.get(upstream_of(r)).copied())
+                .collect()
+        })
+        .collect();
+
+    // Find successor indices (reverse of deps)
+    let succ_of: Vec<Vec<usize>> = {
+        let mut succ = vec![vec![]; nodes.len()];
+        for (i, deps) in deps_of.iter().enumerate() {
+            for &d in deps {
+                succ[d].push(i);
+            }
+        }
+        succ
+    };
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Color {
+        White,
+        Gray,
+        Black,
+    }
+
+    fn dfs(
+        i: usize,
+        succ: &[Vec<usize>],
+        color: &mut Vec<Color>,
+        path: &mut Vec<usize>,
+        names: &[String],
+    ) -> Result<()> {
+        color[i] = Color::Gray;
+        path.push(i);
+        for &next in &succ[i] {
+            match color[next] {
+                Color::Gray => {
+                    let start = path.iter().position(|&n| n == next).unwrap_or(0);
+                    let cycle: Vec<&str> =
+                        path[start..].iter().map(|&n| names[n].as_str()).collect();
+                    bail!("cycle detected: {} -> {}", cycle.join(" -> "), names[next]);
+                }
+                Color::White => dfs(next, succ, color, path, names)?,
+                Color::Black => {}
+            }
+        }
+        path.pop();
+        color[i] = Color::Black;
+        Ok(())
+    }
+
+    let mut color = vec![Color::White; nodes.len()];
+    let mut path: Vec<usize> = Vec::new();
+    let names: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
+
+    for i in 0..nodes.len() {
+        if color[i] == Color::White {
+            dfs(i, &succ_of, &mut color, &mut path, &names)?;
+        }
+    }
+    Ok(())
+}
+
 // ── Flow execution ─────────────────────────────────────────────────────────
 
 async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> Result<()> {
@@ -470,13 +549,16 @@ async fn execute_node(
 
         if code == na_contract::exit_code::RETRYABLE && attempt < max_retries {
             attempt += 1;
+            let delay_ms = 100u64 * 2u64.pow(attempt - 1);
             warn!(
                 attempt,
                 max_retries,
                 exit_code = code,
+                delay_ms,
                 stderr,
                 "node retrying"
             );
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
             continue;
         }
         if on_error == "continue" {

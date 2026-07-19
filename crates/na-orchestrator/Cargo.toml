@@ -22,5 +22,4 @@ tracing-subscriber = { version = "0.3.23", features = ["json"] }
 clap = { version = "4.6.1", features = ["derive"] }
 
 [dev-dependencies]
-na-echo = { path = "../na-echo" }
 tempfile = "3.27.0"

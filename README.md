@@ -51,7 +51,7 @@ Commands:
 |---|---|
 | `na-echo` | Echo a message (reference / test node) |
 | `na-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
-| `na-jq` | JSON path extractor (dot-path syntax) |
+| `na-jsonpath` | JSON path extractor (dot-path syntax) |
 | `na-db` | PostgreSQL query execution |
 | `na-file` | File read / write |
 | `na-vault` | Credential storage (resolves `vault://` refs) |

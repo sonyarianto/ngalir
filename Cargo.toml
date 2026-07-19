@@ -6,7 +6,7 @@ members = [
     "crates/na-echo",
     "crates/na-file",
     "crates/na-http",
-    "crates/na-jq",
+    "crates/na-jsonpath",
     "crates/na-orchestrator",
     "crates/na-vault",
 ]

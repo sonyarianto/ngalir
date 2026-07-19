@@ -98,7 +98,8 @@ async fn run() {
         .collect::<serde_json::Map<_, _>>()
         .into();
 
-    let resp_body: Value = resp.json().await.unwrap_or(Value::Null);
+    let resp_text = resp.text().await.unwrap_or_default();
+    let resp_body: Value = serde_json::from_str(&resp_text).unwrap_or(Value::String(resp_text));
     let output = serde_json::json!({
         "status": status,
         "headers": resp_headers,

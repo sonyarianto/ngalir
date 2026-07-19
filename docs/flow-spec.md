@@ -9,32 +9,28 @@ struct. JSON is also accepted (superset of YAML).
 ```yaml
 version: 1
 name: daily-report
-description: "Pull rows, transform, email the team"
+description: "Pull rows, transform, save to file"
 concurrency: 8
 nodes:
   - id: src
-    use: na-data            # -> resolves to binary `na-data`
+    use: db                 # -> resolves to binary `na-db`
     with:                   # static params (literal values)
       query: "SELECT id, amount FROM orders WHERE day = current_date"
       connection: vault://db/prod
   - id: transform
-    use: na-jq
+    use: jsonpath
     with:
-      filter: ".rows[] | {id, amount}"
+      filter: "rows.0.id"
     inputs:                 # dynamic wiring from upstream outputs
       data: src.rows        # <upstream_id>.<output_field>
-  - id: notify
-    use: na-mail
+  - id: save
+    use: file
     with:
-      to: team@example.com
+      action: write
+      path: /tmp/report.json
     inputs:
-      body: transform.result
-    on_error: stop          # stop | continue | retry(N)
-  - id: alert
-    use: na-mail
-    when: "{{ src.row_count > 1000 }}"   # node only runs if condition true
-    inputs:
-      body: src.rows
+      content: transform.result
+    on_error: retry(3)      # stop | continue | retry(N)
 ```
 
 ## Fields
@@ -59,7 +55,7 @@ nodes:
 - **Validation before run**: every node's resolved input is checked against its
   manifest JSON Schema. Invalid flow fails fast with a clear error.
 - **Secrets**: any `vault://` value in `with` is resolved by `na-vault` and
-  injected into the node env as `NGALIR_SECRET_*` before spawn.
+  injected into the input JSON before sending to the node.
 - **Branching**: via `when:` expression on a node (skips node if false).
 - **Loops / iteration**: deferred to v2 (map over streamed arrays).
 

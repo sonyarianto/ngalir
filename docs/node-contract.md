@@ -1,16 +1,16 @@
 # Node Contract
 
 Every Ngalir node is a standalone Rust binary named `na-<name>` (e.g.
-`na-data`, `na-vault`, `na-http`, `na-llm`). All nodes share one uniform
+`na-echo`, `na-vault`, `na-http`, `na-jsonpath`). All nodes share one uniform
 interface so the Orchestrator can treat every node generically.
 
 ## 1. Modes (subcommands)
 
 | Invocation            | Purpose                                                              |
 |-----------------------|----------------------------------------------------------------------|
-| `na-data` / `run`     | Execute the node. Reads input JSON, writes output JSON/NDJSON.       |
-| `na-data --describe`  | Print the **capability manifest** (JSON) for discovery & validation. |
-| `na-data --version`   | Print version string (semver).                                       |
+| `na-echo` / `run`     | Execute the node. Reads input JSON, writes output JSON/NDJSON.       |
+| `na-echo --describe`  | Print the **capability manifest** (JSON) for discovery & validation. |
+| `na-echo --version`   | Print version string (semver).                                       |
 
 The manifest is the single source of truth the Orchestrator uses to discover
 node capabilities and validate a Flow Spec before running.
@@ -19,25 +19,23 @@ node capabilities and validate a Flow Spec before running.
 
 ```json
 {
-  "name": "na-data",
+  "name": "na-echo",
   "version": "0.1.0",
-  "description": "Query relational databases",
+  "description": "Sample node demonstrating the contract",
   "inputs": {
     "type": "object",
     "properties": {
-      "query":      { "type": "string", "description": "SQL query" },
-      "connection": { "type": "string", "description": "vault://ref" }
+      "message":   { "type": "string", "description": "Message to echo" }
     },
-    "required": ["query"]
+    "required": ["message"]
   },
   "outputs": {
     "type": "object",
     "properties": {
-      "rows":      { "type": "array" },
-      "row_count": { "type": "integer" }
+      "echo":      { "type": "string" }
     }
   },
-  "secrets":    ["connection"],
+  "secrets":    [],
   "streaming":  false,
   "idempotent": true
 }
@@ -77,7 +75,7 @@ Fields:
 - A node declares secret inputs via `secrets` in its manifest.
 - The Orchestrator asks `na-vault` to resolve each `vault://...` reference and
   injects the value into the child process environment as
-  `NGALIR_SECRET_<NAME>`.
+  `NGALIR_SECRET_<NAME>` (planned — currently resolved into stdin JSON).
 - Nodes read secrets from env, never from `argv` or the input JSON body.
 - This keeps secrets out of process listings, logs, and the Flow Spec file.
 

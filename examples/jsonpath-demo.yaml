@@ -1,6 +1,6 @@
 version: 1
 name: jq-demo
-description: "Extract a field from JSON using na-jq"
+description: "Extract a field from JSON using na-jsonpath"
 nodes:
   - id: src
     use: echo
