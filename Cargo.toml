@@ -16,6 +16,7 @@ members = [
     "crates/na-email",
     "crates/na-csv",
     "crates/na-excel",
+    "crates/na-google-sheets",
 ]
 
 [workspace.package]

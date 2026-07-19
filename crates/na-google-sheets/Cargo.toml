@@ -1,0 +1,19 @@
+[package]
+name = "na-google-sheets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: read from and append to Google Sheets via the Sheets API."
+
+[[bin]]
+name = "na-google-sheets"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13", features = ["json", "form"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+jsonwebtoken = "10"
+tracing = "0.1"
