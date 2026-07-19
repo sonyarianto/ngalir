@@ -18,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 92 unit + integration tests across all crates
-- ✅ 14 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email
+- ✅ 15 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
@@ -36,7 +36,7 @@ workflows, and scheduled batch jobs.
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
 | No `na-llm` node | Requested by early users |
-| No CSV, Excel, or Google Sheets nodes | Can't process the three most common business data formats |
+| No Excel or Google Sheets nodes | Can't process two of the three most common business data formats |
 
 ---
 
@@ -164,29 +164,15 @@ business data formats: **CSV**, **Excel (.xlsx)**, and **Google Sheets**.
 Adding these unlocks real-world ETL scenarios like "download CSV from FTP →
 transform → upload to database" or "sync Google Sheet → Excel report daily."
 
-### 5.1 `na-csv` — CSV processor
+### 5.1 `na-csv` — CSV processor ✅ (Complete)
 
-**Why first:** Simplest to implement (`csv` crate), most universal format.
-Every business has CSV exports from legacy systems, ERPs, and databases.
-
-**Target:**
-- **Read CSV** → output JSON array of objects (headers as keys)
-- **Write CSV** → accept JSON array of objects, write to file/stdout
-- Options: delimiter (comma/tab/semicolon), header row, quoting, encoding
-- Streaming mode: output one row per NDJSON line (`streaming: true`)
-- Infer types (string/number/bool) from data, or accept explicit schema
-
-**Input example:**
-```json
-{ "action": "read", "path": "/data/orders.csv", "delimiter": "," }
-```
-
-**Output example:**
-```json
-{ "rows": [{ "id": "1", "amount": "99.50" }, ...], "count": 42 }
-```
-
-**Effort:** 1-2 days.
+**Streaming CSV node implemented:**
+- **Read CSV** from file → streams rows as NDJSON lines (one per row) to stdout
+- **Write CSV** → accepts JSON rows array, writes to file or stdout
+- Options: delimiter (comma/tab), `has_headers` (default true), `columns` (auto-inferred from first row, sorted alphabetically)
+- `streaming: true` — each row emitted as a separate NDJSON line
+- 13 unit tests covering: read/write with file, stdin, stdout, delimiters, headers, error cases
+- Error handling: missing path for read, missing rows for write, file I/O errors
 
 ### 5.2 `na-excel` — Excel (.xlsx) processor
 
@@ -390,7 +376,9 @@ nodes:
       body: notify.text
 ```
 
-### After Phase 5 (Data Processing) ✅
+### After Phase 5 (Data Processing) 🔄
+
+**5.1 ✅ CSV — done.**
 
 ```yaml
 # Download CSV from SFTP → clean → load to database → email report
