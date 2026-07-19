@@ -18,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 92 unit + integration tests across all crates
-- ✅ 16 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel
+- ✅ 17 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
@@ -36,7 +36,6 @@ workflows, and scheduled batch jobs.
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
 | No `na-llm` node | Requested by early users |
-| No Excel or Google Sheets nodes | Can't process two of the three most common business data formats |
 
 ---
 
@@ -193,28 +192,18 @@ transform → upload to database" or "sync Google Sheet → Excel report daily."
 
 **Effort:** 2-3 days.
 
-### 5.3 `na-sheets` — Google Sheets processor
+### 5.3 `na-google-sheets` — Google Sheets processor ✅ (Complete)
 
-**Why third:** Cloud-native, enables real-time collaboration flows.
-Requires Google Cloud OAuth2 setup (more complex than file-based nodes).
-
-**Target:**
-- **Read** a spreadsheet by ID + sheet name → JSON array
-- **Write / append** rows to a sheet
-- **Create** new spreadsheets
-- OAuth2 authentication via service account or OOB flow
-- Secret: `NGALIR_SECRET_GOOGLE_CREDENTIALS` for the JSON key
-- Rate-limit aware (Google quota: 60 requests/user/second)
-
-**Input example:**
-```json
-{ "action": "read", "spreadsheet_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
+**Streaming Google Sheets node implemented (jsonwebtoken + reqwest):**
+- **Read** a spreadsheet by ID + sheet name/range → NDJSON rows (one per line)
+- **Append** rows to a sheet from JSON rows array
+- OAuth2 service account authentication via `jsonwebtoken` (RS256 JWT assertion)
+- Credentials resolved via env var `NGALIR_SECRET_CREDENTIALS` (vault integration) or file path / inline JSON
+- `has_headers: true` (default) treats first row as field names; `false` uses A, B, C... column labels
+- `range` supports A1 notation (e.g. `Sheet1!A1:C10`)
+- Streaming output for read (`streaming: true`)
+- 9 unit tests covering manifest, credential resolution, input validation
   "sheet": "Sheet1", "range": "A:E" }
-```
-
-**Output example:**
-```json
-{ "rows": [{ "Name": "Alice", "Amount": 1500 }, ...], "count": 42 }
 ```
 
 **Effort:** 3-4 days.
@@ -370,6 +359,7 @@ nodes:
 
 **5.1 ✅ CSV — done.**
 **5.2 ✅ Excel — done.**
+**5.3 ✅ Google Sheets — done.**
 
 ```yaml
 # Download CSV from SFTP → clean → load to database → email report
