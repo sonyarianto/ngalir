@@ -11,6 +11,9 @@ members = [
     "crates/na-jsonpath",
     "crates/na-orchestrator",
     "crates/na-vault",
+    "crates/na-webhook",
+    "crates/na-schedule",
+    "crates/na-email",
 ]
 
 [workspace.package]

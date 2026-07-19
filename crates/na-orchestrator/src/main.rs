@@ -10,12 +10,34 @@ use clap::{Parser, Subcommand};
 use na_contract::Manifest;
 use rhai::{Engine, Scope};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async fn read_stream_output<R>(reader: R) -> Result<Vec<Value>>
+where
+    R: tokio::io::AsyncBufRead + Unpin,
+{
+    let mut lines = reader.lines();
+    let mut stream = Vec::new();
+    while let Some(line) = lines.next_line().await? {
+        if line.is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<Value>(&line) {
+            Ok(val) => stream.push(val),
+            Err(e) => {
+                warn!(error = %e, line = line, "skipping unparseable NDJSON line");
+            }
+        }
+    }
+    Ok(stream)
+}
 use tokio::process::Command;
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{error, info, info_span, warn, Instrument};
@@ -43,6 +65,9 @@ enum Commands {
         /// Directory for checkpoint state files (enables resume on restart)
         #[arg(long)]
         state_dir: Option<String>,
+        /// JSON input string to inject as `__request__` for the flow
+        #[arg(long)]
+        input: Option<String>,
     },
     /// List all available na-* node binaries on PATH / NGALIR_NODE_PATH
     Nodes,
@@ -57,13 +82,18 @@ enum Commands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Run { flow, state_dir } => {
+        Commands::Run {
+            flow,
+            state_dir,
+            input,
+        } => {
             tracing_subscriber::fmt()
                 .json()
                 .with_span_events(FmtSpan::CLOSE)
+                .with_writer(std::io::stderr)
                 .try_init()
                 .ok();
-            cmd_run(&flow, state_dir).await
+            cmd_run(&flow, state_dir, input).await
         }
         Commands::Nodes => cmd_nodes().await,
         Commands::Validate { flow } => cmd_validate(&flow).await,
@@ -72,7 +102,7 @@ async fn main() -> Result<()> {
 
 // ── Subcommands ────────────────────────────────────────────────────────────
 
-async fn cmd_run(path: &str, state_dir: Option<String>) -> Result<()> {
+async fn cmd_run(path: &str, state_dir: Option<String>, input_json: Option<String>) -> Result<()> {
     let flow: FlowSpec = parse_flow(path)?;
     check_cycles(&flow.nodes)?;
     let node_bins = preflight(&flow).await?;
@@ -82,7 +112,22 @@ async fn cmd_run(path: &str, state_dir: Option<String>) -> Result<()> {
         }
         None => StateStore::disabled(),
     };
-    execute_flow(&flow, &node_bins, &mut store).await
+
+    let initial_outputs = input_json
+        .map(|s| serde_json::from_str::<Value>(&s))
+        .transpose()?
+        .map(|v| {
+            let mut m = HashMap::new();
+            m.insert("__request__".to_string(), v);
+            m
+        })
+        .unwrap_or_default();
+
+    let outputs = execute_flow(&flow, &node_bins, &mut store, initial_outputs).await?;
+
+    let result = serde_json::to_string(&outputs)?;
+    println!("{result}");
+    Ok(())
 }
 
 async fn cmd_validate(path: &str) -> Result<()> {
@@ -440,9 +485,12 @@ async fn execute_flow(
     flow: &FlowSpec,
     node_bins: &HashMap<String, NodeBin>,
     store: &mut StateStore,
-) -> Result<()> {
+    initial_outputs: HashMap<String, Value>,
+) -> Result<HashMap<String, Value>> {
     let sem = Arc::new(Semaphore::new(flow.concurrency.max(1)));
-    let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(store.data.clone()));
+    let mut merged = store.data.clone();
+    merged.extend(initial_outputs);
+    let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(merged));
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
 
     // Remove already-checkpointed nodes from the worklist
@@ -535,7 +583,8 @@ async fn execute_flow(
     }
 
     info!("flow completed");
-    Ok(())
+    let final_outputs = outputs.lock().await.clone();
+    Ok(final_outputs)
 }
 
 // ── DAG helpers ────────────────────────────────────────────────────────────
@@ -762,47 +811,98 @@ async fn execute_node(
             stdin.write_all(&bytes).await?;
             stdin.shutdown().await?;
         }
-        let out = child.wait_with_output().await?;
 
-        if out.status.success() {
-            let val: Value = serde_json::from_slice(&out.stdout)
-                .with_context(|| format!("parse output of node {}", node.id))?;
-            return Ok((node.id.clone(), val));
-        }
+        if bin.manifest.streaming {
+            let stdout = child.stdout.take().context("child stdout")?;
+            let reader = BufReader::new(stdout);
+            let stream = read_stream_output(reader).await?;
+            // Read stderr
+            let mut stderr = String::new();
+            if let Some(stderr_pipe) = child.stderr.take() {
+                tokio::io::BufReader::new(stderr_pipe)
+                    .read_to_string(&mut stderr)
+                    .await?;
+            }
 
-        let code = out.status.code().unwrap_or(1);
-        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-
-        if code == na_contract::exit_code::RETRYABLE && attempt < max_retries {
-            attempt += 1;
-            let delay_ms = 100u64 * 2u64.pow(attempt - 1);
-            warn!(
-                attempt,
-                max_retries,
-                exit_code = code,
-                delay_ms,
-                stderr,
-                "node retrying"
+            let status = child.wait().await?;
+            if status.success() {
+                let val = json!({"stream": stream});
+                return Ok((node.id.clone(), val));
+            }
+            let code = status.code().unwrap_or(1);
+            if code == na_contract::exit_code::RETRYABLE && attempt < max_retries {
+                attempt += 1;
+                let delay_ms = 100u64 * 2u64.pow(attempt - 1);
+                warn!(
+                    attempt,
+                    max_retries,
+                    exit_code = code,
+                    delay_ms,
+                    stderr,
+                    "node retrying"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                continue;
+            }
+            if on_error == "continue" {
+                warn!(
+                    exit_code = code,
+                    stderr,
+                    on_error = "continue",
+                    "node failed, continuing"
+                );
+                return Ok((node.id.clone(), Value::Null));
+            }
+            bail!(
+                "node {} ({}) failed code {}: {}",
+                node.id,
+                bin.binary,
+                code,
+                stderr
             );
-            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-            continue;
-        }
-        if on_error == "continue" {
-            warn!(
-                exit_code = code,
+        } else {
+            let out = child.wait_with_output().await?;
+
+            if out.status.success() {
+                let val: Value = serde_json::from_slice(&out.stdout)
+                    .with_context(|| format!("parse output of node {}", node.id))?;
+                return Ok((node.id.clone(), val));
+            }
+
+            let code = out.status.code().unwrap_or(1);
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+
+            if code == na_contract::exit_code::RETRYABLE && attempt < max_retries {
+                attempt += 1;
+                let delay_ms = 100u64 * 2u64.pow(attempt - 1);
+                warn!(
+                    attempt,
+                    max_retries,
+                    exit_code = code,
+                    delay_ms,
+                    stderr,
+                    "node retrying"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                continue;
+            }
+            if on_error == "continue" {
+                warn!(
+                    exit_code = code,
+                    stderr,
+                    on_error = "continue",
+                    "node failed, continuing"
+                );
+                return Ok((node.id.clone(), Value::Null));
+            }
+            bail!(
+                "node {} ({}) failed code {}: {}",
+                node.id,
+                bin.binary,
+                code,
                 stderr,
-                on_error = "continue",
-                "node failed, continuing"
             );
-            return Ok((node.id.clone(), Value::Null));
         }
-        bail!(
-            "node {} ({}) failed code {}: {}",
-            node.id,
-            bin.binary,
-            code,
-            stderr,
-        );
     }
 }
 
@@ -1144,5 +1244,53 @@ mod tests {
         interpolate_json(&mut input, &outputs);
         assert_eq!(input["url"], "https://example.com:8080/api");
         assert_eq!(input["meta"]["name"], "static");
+    }
+
+    #[tokio::test]
+    async fn test_read_stream_output_valid_lines() {
+        let data = r#"{"a":1}
+{"b":2}
+{"c":3}
+"#;
+        let stream = read_stream_output(tokio::io::BufReader::new(std::io::Cursor::new(data)))
+            .await
+            .unwrap();
+        assert_eq!(stream.len(), 3);
+        assert_eq!(stream[0], json!({"a": 1}));
+        assert_eq!(stream[1], json!({"b": 2}));
+        assert_eq!(stream[2], json!({"c": 3}));
+    }
+
+    #[tokio::test]
+    async fn test_read_stream_output_skips_empty_lines() {
+        let data = r#"{"a":1}
+
+{"b":2}
+
+"#;
+        let stream = read_stream_output(tokio::io::BufReader::new(std::io::Cursor::new(data)))
+            .await
+            .unwrap();
+        assert_eq!(stream.len(), 2);
+        assert_eq!(stream[0], json!({"a": 1}));
+        assert_eq!(stream[1], json!({"b": 2}));
+    }
+
+    #[tokio::test]
+    async fn test_read_stream_output_skips_invalid_json() {
+        let data = "not json\n{\"valid\": true}\ntrash\n";
+        let stream = read_stream_output(tokio::io::BufReader::new(std::io::Cursor::new(data)))
+            .await
+            .unwrap();
+        assert_eq!(stream.len(), 1);
+        assert_eq!(stream[0], json!({"valid": true}));
+    }
+
+    #[tokio::test]
+    async fn test_read_stream_output_empty() {
+        let stream = read_stream_output(tokio::io::BufReader::new(std::io::Cursor::new("")))
+            .await
+            .unwrap();
+        assert!(stream.is_empty());
     }
 }

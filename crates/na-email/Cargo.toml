@@ -1,0 +1,18 @@
+[package]
+name = "na-email"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: sends email via SMTP."
+
+[[bin]]
+name = "na-email"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+tracing = "0.1.44"
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
