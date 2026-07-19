@@ -18,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 146 unit + integration tests across all crates
-- ✅ `ngalir skills` CLI — JSON registry of all node manifests with use_cases, examples, see_also
+- ✅ `ngalir generate` — AI flow generation from natural language prompts
 - ✅ 15 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
 - ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
@@ -176,24 +176,18 @@ the system generates, visualizes, and runs the workflow.
 
 **Effort:** 1-2 days. ✅
 
-### 6.2 AI Flow Generator
+### 6.2 AI Flow Generator ✅ (Complete)
 
-**Problem:** Users must manually write YAML flows. A natural-language interface
-would lower the barrier dramatically.
+**`ngalir generate` command implemented:**
+- Takes natural language prompt, calls `na-llm` with Node Skills Registry as context
+- `--edit path/to/flow.yaml` mode amends an existing flow
+- `--model` flag to choose LLM (default: gpt-4o)
+- `--output path.yaml` to write to file (default: stdout)
+- Uses `NGALIR_SECRET_API_KEY` env var or `api_key` input field for auth
+- Extracts YAML from ```yaml code blocks in LLM response
+- Clippy clean, all tests pass
 
-**Target:**
-- New `ngalir generate` command: takes a natural language prompt, outputs a `.yaml` flow
-- Uses `na-llm` internally (or configurable LLM provider via env var)
-- Context: the Node Skills Registry (6.1) is injected as system prompt
-- Iterative refinement: `ngalir generate --edit prompt2` amends an existing flow
-- Output can be piped directly into `ngalir run --flow -`
-
-**Example:**
-```
-ngalir generate "download orders.csv from SFTP, filter rows where amount > 100, email summary to ops@example.com"
-```
-
-**Effort:** 3-4 days.
+**Effort:** 3-4 days. ✅
 
 ### 6.3 Web UI (Flow Editor)
 

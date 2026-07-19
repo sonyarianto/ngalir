@@ -102,6 +102,20 @@ enum Commands {
     },
     /// Output the full node skills registry as JSON (for AI context)
     Skills,
+    /// Generate a flow from a natural-language prompt
+    Generate {
+        /// Natural-language description of what the flow should do
+        prompt: String,
+        /// Edit an existing flow file (pass --edit path/to/flow.yaml)
+        #[arg(long)]
+        edit: Option<String>,
+        /// LLM model to use (default: gpt-4o)
+        #[arg(long)]
+        model: Option<String>,
+        /// Output file path (default: stdout)
+        #[arg(long)]
+        output: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -137,6 +151,12 @@ async fn main() -> Result<()> {
         Commands::Nodes => cmd_nodes().await,
         Commands::Validate { flow } => cmd_validate(&flow).await,
         Commands::Skills => cmd_skills().await,
+        Commands::Generate {
+            prompt,
+            edit,
+            model,
+            output,
+        } => cmd_generate(prompt, edit, model, output).await,
     }
 }
 
@@ -329,6 +349,116 @@ async fn cmd_skills() -> Result<()> {
         registry.push(bin.manifest);
     }
     println!("{}", serde_json::to_string_pretty(&registry)?);
+    Ok(())
+}
+
+/// Collect all node manifests into a JSON array string.
+async fn skills_registry_json() -> Result<String> {
+    let binaries = scan_binaries();
+    let mut registry = Vec::new();
+    for name in &binaries {
+        if let Ok(bin) = describe_binary(name).await {
+            registry.push(bin.manifest);
+        }
+    }
+    serde_json::to_string_pretty(&registry).map_err(Into::into)
+}
+
+/// Spawn an na-* node, feed it JSON on stdin, read JSON from stdout.
+async fn call_node(binary: &str, input: &Value) -> Result<Value> {
+    let mut cmd = tokio::process::Command::new(binary);
+    cmd.stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child = cmd.spawn().with_context(|| format!("spawn {binary}"))?;
+    {
+        let mut stdin = child.stdin.take().context("child stdin")?;
+        stdin.write_all(&serde_json::to_vec(input)?).await?;
+        stdin.shutdown().await?;
+    }
+    let out = child.wait_with_output().await?;
+    if !out.status.success() {
+        bail!(
+            "{binary} failed (exit {}): {}",
+            out.status.code().unwrap_or(1),
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    serde_json::from_slice(&out.stdout).with_context(|| format!("parse {binary} output"))
+}
+
+async fn cmd_generate(
+    prompt: String,
+    edit: Option<String>,
+    model: Option<String>,
+    output: Option<String>,
+) -> Result<()> {
+    let registry = skills_registry_json().await?;
+
+    let system_prompt = format!(
+        "You are Ngalir, a workflow automation engine that generates YAML flow specs. \
+        Your output is used directly — no explanations, no markdown, just raw YAML.\n\n\
+        Available nodes:\n{registry}\n\n\
+        Rules:\n\
+        - version: 1\n\
+        - Each node has id and use (the na-* name)\n\
+        - Wire nodes via inputs: node_id.output_field\n\
+        - with: for static config\n\
+        - when: for conditions ({{{{ expr }}}})\n\
+        - Use vault:// prefix for secrets\n\
+        - Use {{{{ node_id.field }}}} for template interpolation\n\
+        - Use @path for subflow references\n\
+        - Output ONLY valid YAML between ```yaml and ``` markers"
+    );
+
+    let user_message = if let Some(ref flow_path) = edit {
+        let existing =
+            std::fs::read_to_string(flow_path).with_context(|| format!("read {flow_path}"))?;
+        format!(
+            "Edit this existing flow:\n\n```yaml\n{existing}\n```\n\n\
+            Apply this change: {prompt}\n\n\
+            Output the complete modified YAML flow between ```yaml and ``` markers."
+        )
+    } else {
+        format!(
+            "Generate a YAML flow for: {prompt}\n\n\
+            Output between ```yaml and ``` markers."
+        )
+    };
+
+    let llm_input = json!({
+        "model": model.unwrap_or_else(|| "gpt-4o".to_string()),
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 4096,
+    });
+
+    let bin = discover_node("llm").await?;
+    let result = call_node(&bin.binary, &llm_input).await?;
+    let raw = result["content"].as_str().unwrap_or("").to_string();
+
+    // Extract YAML from markdown code block
+    let yaml = if let Some(start) = raw.find("```yaml") {
+        let body = &raw[start + 7..];
+        if let Some(end) = body.find("```") {
+            body[..end].trim()
+        } else {
+            body.trim()
+        }
+    } else {
+        raw.trim()
+    };
+
+    if let Some(out_path) = output {
+        std::fs::write(&out_path, yaml)?;
+        println!("Flow written to {out_path}");
+    } else {
+        print!("{yaml}");
+    }
+
     Ok(())
 }
 
