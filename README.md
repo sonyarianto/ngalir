@@ -53,23 +53,17 @@ Run flags:
 
 ## Included nodes
 
-| Node | What |
-|---|---|
-| `na-echo` | Echo a message (reference / test node) |
-| `na-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
-| `na-jsonpath` | JSON path extractor with jq-compatible filtering (`.[]`, slices, pipes) |
-| `na-db-postgres` | PostgreSQL query execution |
-| `na-db-mysql` | MySQL query execution |
-| `na-db-sqlite` | SQLite query execution |
-| `na-file` | File read / write |
-| `na-vault` | Credential storage (resolves `vault://` refs) |
-| `na-llm` | LLM chat completions (OpenAI / Anthropic / compatible) |
-| `na-csv` | Streaming CSV processor (read / write) |
-| `na-excel` | Excel (.xlsx) processor (read / write, sheet & range selection) |
-| `na-google-sheets` | Google Sheets processor (read / append, OAuth2) |
-| `na-email` | SMTP email sender |
-| `na-webhook` | HTTP server that triggers flow execution |
-| `na-schedule` | Cron-based flow scheduler |
+Run `ngalir nodes` to list all `na-*` binaries on your `PATH`. Nodes are
+discovered dynamically — add new ones by placing `na-<name>` anywhere on
+`PATH` or `NGALIR_NODE_PATH`.
+
+Current curated node set (all in `crates/`):
+
+- **Core**: echo, file, http, jsonpath, vault
+- **Database**: db-postgres, db-mysql, db-sqlite  
+- **Data processing**: csv, excel, google-sheets
+- **AI**: llm (OpenAI / Anthropic / compatible)
+- **Triggers**: webhook (HTTP server), schedule (cron), email (SMTP)
 
 ## Writing a flow
 
