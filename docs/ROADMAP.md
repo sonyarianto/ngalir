@@ -30,7 +30,7 @@ workflows, and scheduled batch jobs.
 
 | Gap | Why It Matters |
 |-----|----------------|
-| `na-jsonpath` is dot-path only, not jq-compatible | Users expect `.[] | {id}` syntax |
+| `na-jsonpath` was dot-path only, now jq-compatible | Upgraded with `.[]`, slices, pipes, object reconstruction |
 | No Docker images or container orchestration | Hard to deploy in production |
 | No Prometheus metrics or health endpoints | No observability in production |
 | Large payloads held in memory | OOM on files > 100MB |
@@ -76,19 +76,16 @@ Low-effort fixes that removed immediate sharp edges.
 
 Address the remaining gaps between MVP and production-ready system.
 
-### 4.1 jq-compatible filtering for na-jsonpath
+### 4.1 jq-compatible filtering for na-jsonpath ✅ (Complete)
 
-**Problem:** `na-jsonpath` only supports dot-path access (`rows.0.name`).
-Users migrating from jq expect `.[] | {id, name}` syntax.
-
-**Target:**
-- Array iteration: `.[]` → yield each element as a separate output
-- Pipe chaining: `.[] | {id, name}` → map + select fields
-- Object reconstruction: `{id, amount}` → build new objects from fields
-- Array slice: `.[0:5]` → select sub-range
-- Keep dot-path as fallback for simple cases
-
-**Effort:** 3-5 days.
+**Upgraded from simple dot-path to jq-compatible pipeline filter:**
+- Array iteration: `.[]` → returns array of elements (or `[]` on non-array)
+- Array slicing: `.[0:5]`, `.[-2:]`, `.[:3]`, `.[2:]` with negative index support
+- Pipe chaining: `.[] | {id, name}` → map + select fields across pipeline stages
+- Object reconstruction: `{key1, key2}` and `{new_key: .nested.key}` syntax
+- Compound paths: `items[]`, `items[0:3]`, `items[].name` parsed as key + array operator
+- Backward compatible: all existing dot-path syntax still works
+- 18 unit tests (was 6) covering: pipeline stages, object reconstruction, array slices with negative indices, nested dot-paths in reconstruction
 
 ### 4.2 Docker images & CI/CD
 
