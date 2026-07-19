@@ -402,7 +402,7 @@ nodes:
 # ETL with credentials — production-like use case
 nodes:
   - id: src
-    use: db
+    use: db-postgres
     with:
       connection: vault://db/prod
       query: "SELECT id, amount FROM orders WHERE day = current_date"

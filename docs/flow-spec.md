@@ -13,7 +13,7 @@ description: "Pull rows, transform, save to file"
 concurrency: 8
 nodes:
   - id: src
-    use: db                 # -> resolves to binary `na-db`
+    use: db-postgres        # -> resolves to binary `na-db-postgres`
     with:                   # static params (literal values)
       query: "SELECT id, amount FROM orders WHERE day = current_date"
       connection: vault://db/prod

@@ -2,7 +2,9 @@
 resolver = "2"
 members = [
     "crates/na-contract",
-    "crates/na-db",
+    "crates/na-db-postgres",
+    "crates/na-db-mysql",
+    "crates/na-db-sqlite",
     "crates/na-echo",
     "crates/na-file",
     "crates/na-http",

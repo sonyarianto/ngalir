@@ -48,7 +48,7 @@ it spawns the `na-*` node binaries internally.
 
 Locked 2026-07-07:
 
-- **CLI binaries (nodes & services): `na-<name>`** — `na-vault`, `na-db`,
+- **CLI binaries (nodes & services): `na-<name>`** — `na-vault`, `na-db-postgres`,
   `na-http`, `na-jsonpath`. Hyphen (not underscore) because these are typed on the
   command line. The Orchestrator resolves a flow node's `use: <name>` to the
   binary `na-<name>`.

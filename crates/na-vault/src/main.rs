@@ -115,6 +115,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_manifest_structure() {
@@ -126,6 +127,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_vault_path_respects_env() {
         unsafe {
             std::env::set_var("NGALIR_VAULT_FILE", "/tmp/test-vault.json");
@@ -137,6 +139,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_vault_path_default_uses_home() {
         unsafe {
             std::env::remove_var("NGALIR_VAULT_FILE");
@@ -147,6 +150,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_vault_file_not_found() {
         unsafe {
             std::env::set_var("NGALIR_VAULT_FILE", "/tmp/nonexistent-vault-12345.json");
@@ -159,6 +163,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_vault_invalid_json() {
         let dir = std::env::temp_dir();
         let path = dir.join("test-vault-bad.json");
@@ -175,6 +180,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_vault_valid() {
         let dir = std::env::temp_dir();
         let path = dir.join("test-vault-good.json");
@@ -197,6 +203,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_load_vault_not_an_object() {
         let dir = std::env::temp_dir();
         let path = dir.join("test-vault-array.json");

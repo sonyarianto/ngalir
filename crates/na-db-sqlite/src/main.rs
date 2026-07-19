@@ -1,18 +1,16 @@
-//! Ngalir database query node (PostgreSQL).
-
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::{json, Map, Value};
-use sqlx::{postgres::PgRow, Column, Row};
+use sqlx::{sqlite::SqliteRow, Column, Row};
 
 fn manifest() -> Manifest {
     Manifest {
-        name: "na-db".to_string(),
+        name: "na-db-sqlite".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        description: "Execute SQL queries against PostgreSQL databases.".to_string(),
+        description: "Execute SQL queries against SQLite databases.".to_string(),
         inputs: serde_json::json!({
             "type": "object",
             "properties": {
-                "connection": { "type": "string", "description": "PostgreSQL DSN or vault:// ref" },
+                "connection": { "type": "string", "description": "SQLite file path or vault:// ref" },
                 "query": { "type": "string", "description": "SQL query to execute" }
             },
             "required": ["connection", "query"]
@@ -62,15 +60,17 @@ async fn run() {
         fail(exit_code::INVALID_INPUT, "missing 'query'");
     }
 
-    let pool = sqlx::PgPool::connect(&conn_str).await.unwrap_or_else(|e| {
-        fail(exit_code::GENERIC, format!("DB connection failed: {e}"));
-    });
+    let pool = sqlx::SqlitePool::connect(&conn_str)
+        .await
+        .unwrap_or_else(|e| {
+            fail(exit_code::GENERIC, format!("DB connection failed: {e}"));
+        });
 
     let trimmed = query.trim().to_uppercase();
     let is_select = trimmed.starts_with("SELECT") || trimmed.starts_with("WITH");
 
     if is_select {
-        let rows: Vec<PgRow> = sqlx::query::<sqlx::Postgres>(query)
+        let rows: Vec<SqliteRow> = sqlx::query::<sqlx::Sqlite>(query)
             .fetch_all(&pool)
             .await
             .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("query failed: {e}")));
@@ -88,7 +88,7 @@ async fn run() {
         let output = json!({ "rows": result, "row_count": result.len() });
         println!("{output}");
     } else {
-        let outcome = sqlx::query::<sqlx::Postgres>(query)
+        let outcome = sqlx::query::<sqlx::Sqlite>(query)
             .execute(&pool)
             .await
             .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("query failed: {e}")));
@@ -98,14 +98,8 @@ async fn run() {
     }
 }
 
-fn value_at(row: &PgRow, col: &str) -> Value {
+fn value_at(row: &SqliteRow, col: &str) -> Value {
     if let Ok(v) = row.try_get::<Option<i64>, _>(col) {
-        return v.map(|n| json!(n)).unwrap_or(Value::Null);
-    }
-    if let Ok(v) = row.try_get::<Option<i32>, _>(col) {
-        return v.map(|n| json!(n)).unwrap_or(Value::Null);
-    }
-    if let Ok(v) = row.try_get::<Option<i16>, _>(col) {
         return v.map(|n| json!(n)).unwrap_or(Value::Null);
     }
     if let Ok(v) = row.try_get::<Option<f64>, _>(col) {
@@ -113,18 +107,6 @@ fn value_at(row: &PgRow, col: &str) -> Value {
             .and_then(serde_json::Number::from_f64)
             .map(Value::Number)
             .unwrap_or(Value::Null);
-    }
-    if let Ok(v) = row.try_get::<Option<f32>, _>(col) {
-        return v
-            .and_then(|n| serde_json::Number::from_f64(n as f64))
-            .map(Value::Number)
-            .unwrap_or(Value::Null);
-    }
-    if let Ok(v) = row.try_get::<Option<bool>, _>(col) {
-        return v.map(Value::Bool).unwrap_or(Value::Null);
-    }
-    if let Ok(v) = row.try_get::<Option<serde_json::Value>, _>(col) {
-        return v.unwrap_or(Value::Null);
     }
     if let Ok(v) = row.try_get::<Option<String>, _>(col) {
         return v.map(Value::String).unwrap_or(Value::Null);
@@ -139,7 +121,7 @@ mod tests {
     #[test]
     fn test_manifest_structure() {
         let m = manifest();
-        assert_eq!(m.name, "na-db");
+        assert_eq!(m.name, "na-db-sqlite");
         let required = m.inputs.get("required").unwrap().as_array().unwrap();
         assert!(required.contains(&serde_json::json!("connection")));
         assert!(required.contains(&serde_json::json!("query")));

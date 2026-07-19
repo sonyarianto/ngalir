@@ -88,6 +88,7 @@ pub fn read_input() -> Value {
 mod tests {
     use super::*;
     use serde_json::json;
+    use serial_test::serial;
 
     #[test]
     fn test_manifest_roundtrip() {
@@ -130,6 +131,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_secret_found() {
         unsafe {
             std::env::set_var("NGALIR_SECRET_CONNECTION", "postgres://user:pass@db");
@@ -144,6 +146,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_secret_missing() {
         unsafe {
             std::env::remove_var("NGALIR_SECRET_MISSING");
@@ -152,6 +155,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_read_secret_empty() {
         unsafe {
             std::env::set_var("NGALIR_SECRET_EMPTY", "");

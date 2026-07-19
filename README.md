@@ -52,7 +52,9 @@ Commands:
 | `na-echo` | Echo a message (reference / test node) |
 | `na-http` | HTTP client (GET / POST / PUT / DELETE / PATCH) |
 | `na-jsonpath` | JSON path extractor (dot-path syntax) |
-| `na-db` | PostgreSQL query execution |
+| `na-db-postgres` | PostgreSQL query execution |
+| `na-db-mysql` | MySQL query execution |
+| `na-db-sqlite` | SQLite query execution |
 | `na-file` | File read / write |
 | `na-vault` | Credential storage (resolves `vault://` refs) |
 

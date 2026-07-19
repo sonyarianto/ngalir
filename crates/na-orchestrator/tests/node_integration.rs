@@ -261,25 +261,77 @@ fn test_vault_version() {
     assert!(!String::from_utf8_lossy(&output.stdout).is_empty());
 }
 
-// ── na-db tests ────────────────────────────────────────────────────────────
+// ── na-db-postgres tests ───────────────────────────────────────────────────
 
 #[test]
-fn test_db_describe() {
-    let output = Command::new(node_bin("db"))
+fn test_db_postgres_describe() {
+    let output = Command::new(node_bin("db-postgres"))
         .arg("--describe")
         .env("PATH", node_path())
         .output()
         .expect("spawn");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("na-db"));
+    assert!(stdout.contains("na-db-postgres"));
     assert!(stdout.contains("connection"));
     assert!(stdout.contains("query"));
 }
 
 #[test]
-fn test_db_version() {
-    let output = Command::new(node_bin("db"))
+fn test_db_postgres_version() {
+    let output = Command::new(node_bin("db-postgres"))
+        .arg("--version")
+        .env("PATH", node_path())
+        .output()
+        .expect("spawn");
+    assert!(output.status.success());
+    assert!(!String::from_utf8_lossy(&output.stdout).is_empty());
+}
+
+// ── na-db-mysql tests ──────────────────────────────────────────────────────
+
+#[test]
+fn test_db_mysql_describe() {
+    let output = Command::new(node_bin("db-mysql"))
+        .arg("--describe")
+        .env("PATH", node_path())
+        .output()
+        .expect("spawn");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("na-db-mysql"));
+    assert!(stdout.contains("connection"));
+}
+
+#[test]
+fn test_db_mysql_version() {
+    let output = Command::new(node_bin("db-mysql"))
+        .arg("--version")
+        .env("PATH", node_path())
+        .output()
+        .expect("spawn");
+    assert!(output.status.success());
+    assert!(!String::from_utf8_lossy(&output.stdout).is_empty());
+}
+
+// ── na-db-sqlite tests ─────────────────────────────────────────────────────
+
+#[test]
+fn test_db_sqlite_describe() {
+    let output = Command::new(node_bin("db-sqlite"))
+        .arg("--describe")
+        .env("PATH", node_path())
+        .output()
+        .expect("spawn");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("na-db-sqlite"));
+    assert!(stdout.contains("connection"));
+}
+
+#[test]
+fn test_db_sqlite_version() {
+    let output = Command::new(node_bin("db-sqlite"))
         .arg("--version")
         .env("PATH", node_path())
         .output()
