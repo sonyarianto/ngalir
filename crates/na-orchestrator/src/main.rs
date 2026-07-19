@@ -20,6 +20,7 @@ use std::sync::LazyLock;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{Mutex, Semaphore};
+use tower_http::services::ServeDir;
 use tracing::{error, info, info_span, warn, Instrument};
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -116,6 +117,15 @@ enum Commands {
         #[arg(long)]
         output: Option<String>,
     },
+    /// Start the web UI server
+    Serve {
+        /// Port to listen on
+        #[arg(long, default_value_t = 8080)]
+        port: u16,
+        /// Directory containing built UI files
+        #[arg(long, default_value = "./ui/dist")]
+        ui_dir: String,
+    },
 }
 
 #[tokio::main]
@@ -157,6 +167,7 @@ async fn main() -> Result<()> {
             model,
             output,
         } => cmd_generate(prompt, edit, model, output).await,
+        Commands::Serve { port, ui_dir } => cmd_serve(port, &ui_dir).await,
     }
 }
 
@@ -460,6 +471,51 @@ async fn cmd_generate(
     }
 
     Ok(())
+}
+
+async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
+    let assets = ServeDir::new(ui_dir).append_index_html_on_directories(true);
+
+    let app = axum::Router::new()
+        .nest_service("/", assets)
+        .route("/api/nodes", axum::routing::get(api_nodes))
+        .route("/api/skills", axum::routing::get(api_skills))
+        .route("/api/health", axum::routing::get(|| async { "OK" }));
+
+    let addr: std::net::SocketAddr = ([0, 0, 0, 0], port).into();
+    info!(port, ui_dir, "web UI server starting");
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .with_context(|| format!("bind :{port}"))?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn api_nodes() -> axum::Json<Vec<serde_json::Value>> {
+    let mut out = Vec::new();
+    for name in scan_binaries() {
+        if let Ok(bin) = describe_binary(&name).await {
+            out.push(serde_json::json!({
+                "name": bin.manifest.name,
+                "version": bin.manifest.version,
+                "description": bin.manifest.description,
+                "streaming": bin.manifest.streaming,
+                "idempotent": bin.manifest.idempotent,
+                "use_cases": bin.manifest.use_cases,
+            }));
+        }
+    }
+    axum::Json(out)
+}
+
+async fn api_skills() -> axum::Json<Vec<serde_json::Value>> {
+    let mut out = Vec::new();
+    for name in scan_binaries() {
+        if let Ok(bin) = describe_binary(&name).await {
+            out.push(serde_json::to_value(&bin.manifest).unwrap_or_default());
+        }
+    }
+    axum::Json(out)
 }
 
 // ── Flow Spec types ────────────────────────────────────────────────────────
