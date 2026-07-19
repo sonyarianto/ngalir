@@ -1,0 +1,18 @@
+[package]
+name = "na-llm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: LLM chat completions via OpenAI / Anthropic compatible API."
+
+[[bin]]
+name = "na-llm"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.13", features = ["json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tracing = "0.1"

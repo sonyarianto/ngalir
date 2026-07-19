@@ -1728,6 +1728,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "na-llm"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "na-orchestrator"
 version = "0.1.0"
 dependencies = [
