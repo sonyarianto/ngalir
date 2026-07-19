@@ -40,6 +40,9 @@ enum Commands {
     Run {
         /// Path to Flow Spec YAML file
         flow: String,
+        /// Directory for checkpoint state files (enables resume on restart)
+        #[arg(long)]
+        state_dir: Option<String>,
     },
     /// List all available na-* node binaries on PATH / NGALIR_NODE_PATH
     Nodes,
@@ -54,13 +57,13 @@ enum Commands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Run { flow } => {
+        Commands::Run { flow, state_dir } => {
             tracing_subscriber::fmt()
                 .json()
                 .with_span_events(FmtSpan::CLOSE)
                 .try_init()
                 .ok();
-            cmd_run(&flow).await
+            cmd_run(&flow, state_dir).await
         }
         Commands::Nodes => cmd_nodes().await,
         Commands::Validate { flow } => cmd_validate(&flow).await,
@@ -69,11 +72,17 @@ async fn main() -> Result<()> {
 
 // ── Subcommands ────────────────────────────────────────────────────────────
 
-async fn cmd_run(path: &str) -> Result<()> {
+async fn cmd_run(path: &str, state_dir: Option<String>) -> Result<()> {
     let flow: FlowSpec = parse_flow(path)?;
     check_cycles(&flow.nodes)?;
     let node_bins = preflight(&flow).await?;
-    execute_flow(&flow, &node_bins).await
+    let mut store = match state_dir {
+        Some(dir) => {
+            StateStore::load_or_new(PathBuf::from(dir).join(format!("{}.json", flow.name)))
+        }
+        None => StateStore::disabled(),
+    };
+    execute_flow(&flow, &node_bins, &mut store).await
 }
 
 async fn cmd_validate(path: &str) -> Result<()> {
@@ -375,12 +384,80 @@ fn check_cycles(nodes: &[NodeSpec]) -> Result<()> {
     Ok(())
 }
 
+// ── Checkpoint / Resume state store ────────────────────────────────────────
+
+struct StateStore {
+    path: Option<PathBuf>,
+    data: HashMap<String, Value>,
+}
+
+impl StateStore {
+    fn disabled() -> Self {
+        Self {
+            path: None,
+            data: HashMap::new(),
+        }
+    }
+
+    fn load_or_new(path: PathBuf) -> Self {
+        let data = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        Self {
+            path: Some(path),
+            data,
+        }
+    }
+
+    fn contains(&self, id: &str) -> bool {
+        self.data.contains_key(id)
+    }
+
+    fn insert(&mut self, id: String, value: Value) {
+        self.data.insert(id, value);
+    }
+
+    fn save(&self) -> Result<()> {
+        let Some(path) = &self.path else {
+            return Ok(());
+        };
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        // Atomic write: write to temp file, then rename
+        let tmp = path.with_extension("tmp");
+        let json = serde_json::to_string(&self.data)?;
+        std::fs::write(&tmp, &json)?;
+        std::fs::rename(&tmp, path)?;
+        Ok(())
+    }
+}
+
 // ── Flow execution ─────────────────────────────────────────────────────────
 
-async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> Result<()> {
+async fn execute_flow(
+    flow: &FlowSpec,
+    node_bins: &HashMap<String, NodeBin>,
+    store: &mut StateStore,
+) -> Result<()> {
     let sem = Arc::new(Semaphore::new(flow.concurrency.max(1)));
-    let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(HashMap::new()));
+    let outputs: Arc<Mutex<HashMap<String, Value>>> = Arc::new(Mutex::new(store.data.clone()));
     let mut remaining: Vec<NodeSpec> = flow.nodes.clone();
+
+    // Remove already-checkpointed nodes from the worklist
+    let resumed = store.path.is_some();
+    if resumed {
+        let skip_ids: Vec<String> = remaining
+            .iter()
+            .filter(|n| store.contains(&n.id))
+            .map(|n| n.id.clone())
+            .collect();
+        remaining.retain(|n| !store.contains(&n.id));
+        if !skip_ids.is_empty() {
+            info!(skipped = ?skip_ids, "resumed from checkpoint, skipping completed nodes");
+        }
+    }
 
     let flow_span = info_span!("flow", name = %flow.name, version = flow.version);
     let _guard = flow_span.enter();
@@ -391,6 +468,7 @@ async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> 
     info!(
         nodes = remaining.len(),
         concurrency = flow.concurrency,
+        resumed,
         "flow starting"
     );
 
@@ -422,7 +500,12 @@ async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> 
                 if !eval_when(cond, &guard)? {
                     info!(id = n.id, when = cond, "node skipped");
                     drop(guard);
-                    outputs.lock().await.insert(n.id.clone(), Value::Null);
+                    let val = Value::Null;
+                    outputs.lock().await.insert(n.id.clone(), val.clone());
+                    if resumed {
+                        store.insert(n.id.clone(), val);
+                        store.save()?;
+                    }
                     continue;
                 }
             }
@@ -443,7 +526,11 @@ async fn execute_flow(flow: &FlowSpec, node_bins: &HashMap<String, NodeBin>) -> 
 
         for h in handles {
             let (id, val) = h.await.context("join node task")??;
-            outputs.lock().await.insert(id, val);
+            outputs.lock().await.insert(id.clone(), val.clone());
+            if resumed {
+                store.insert(id, val);
+                store.save()?;
+            }
         }
     }
 
