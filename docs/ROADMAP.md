@@ -36,6 +36,7 @@ workflows, and scheduled batch jobs.
 | No flow composition (subflows / includes) | Duplication across similar flows |
 | No release automation | Manual build & publish |
 | No `na-llm` node | Requested by early users |
+| No CSV, Excel, or Google Sheets nodes | Can't process the three most common business data formats |
 
 ---
 
@@ -153,6 +154,108 @@ downstream nodes. Files > 100MB cause OOM.
 - Streaming support for SSE-based LLM responses
 
 **Effort:** 3-4 days.
+
+---
+
+## Phase 5: Data Processing (Weeks 6-8)
+
+Ngalir handles JSON between nodes but can't process the three most common
+business data formats: **CSV**, **Excel (.xlsx)**, and **Google Sheets**.
+Adding these unlocks real-world ETL scenarios like "download CSV from FTP →
+transform → upload to database" or "sync Google Sheet → Excel report daily."
+
+### 5.1 `na-csv` — CSV processor
+
+**Why first:** Simplest to implement (`csv` crate), most universal format.
+Every business has CSV exports from legacy systems, ERPs, and databases.
+
+**Target:**
+- **Read CSV** → output JSON array of objects (headers as keys)
+- **Write CSV** → accept JSON array of objects, write to file/stdout
+- Options: delimiter (comma/tab/semicolon), header row, quoting, encoding
+- Streaming mode: output one row per NDJSON line (`streaming: true`)
+- Infer types (string/number/bool) from data, or accept explicit schema
+
+**Input example:**
+```json
+{ "action": "read", "path": "/data/orders.csv", "delimiter": "," }
+```
+
+**Output example:**
+```json
+{ "rows": [{ "id": "1", "amount": "99.50" }, ...], "count": 42 }
+```
+
+**Effort:** 1-2 days.
+
+### 5.2 `na-excel` — Excel (.xlsx) processor
+
+**Why second:** Ubiquitous in enterprise and office environments.
+Use `calamine` for reading (no Office install needed) and
+`rust_xlsxwriter` for writing.
+
+**Target:**
+- **Read** .xlsx / .xls files → JSON array per sheet
+- **Write** .xlsx files from JSON arrays
+- Select specific sheets by name or index
+- Cell range selection: `A1:C10` or named ranges
+- Type-aware: dates → ISO strings, numbers → JSON numbers,
+  formulas → resolved values (calamine resolves them)
+- Large file support: streaming read for >10MB files
+
+**Input example:**
+```json
+{ "action": "read", "path": "/data/report.xlsx",
+  "sheet": "Sheet1", "range": "A1:F100" }
+```
+
+**Output example:**
+```json
+{ "sheets": { "Sheet1": [{ "Name": "Alice", "Amount": 1500 }, ...] },
+  "count": 42 }
+```
+
+**Effort:** 2-3 days.
+
+### 5.3 `na-sheets` — Google Sheets processor
+
+**Why third:** Cloud-native, enables real-time collaboration flows.
+Requires Google Cloud OAuth2 setup (more complex than file-based nodes).
+
+**Target:**
+- **Read** a spreadsheet by ID + sheet name → JSON array
+- **Write / append** rows to a sheet
+- **Create** new spreadsheets
+- OAuth2 authentication via service account or OOB flow
+- Secret: `NGALIR_SECRET_GOOGLE_CREDENTIALS` for the JSON key
+- Rate-limit aware (Google quota: 60 requests/user/second)
+
+**Input example:**
+```json
+{ "action": "read", "spreadsheet_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
+  "sheet": "Sheet1", "range": "A:E" }
+```
+
+**Output example:**
+```json
+{ "rows": [{ "Name": "Alice", "Amount": 1500 }, ...], "count": 42 }
+```
+
+**Effort:** 3-4 days.
+
+---
+
+## Later: Other Data Nodes (Candidate)
+
+Once the three core formats are done, consider:
+
+| Node | Description | Effort |
+|------|-------------|--------|
+| `na-xml` | Parse/generate XML (enterprise SOAP/EDI) | 2-3d |
+| `na-yaml` | Parse/generate YAML (config files) | 1d |
+| `na-parquet` | Apache Parquet read/write (analytics) | 3-4d |
+| `na-fixedwidth` | Fixed-width text (legacy mainframe) | 1-2d |
+| `na-html` | HTML table extraction (web scraping) | 1-2d |
 
 ---
 
@@ -285,4 +388,43 @@ nodes:
       subject: "Daily ETL Summary"
     inputs:
       body: notify.text
+```
+
+### After Phase 5 (Data Processing) ✅
+
+```yaml
+# Download CSV from SFTP → clean → load to database → email report
+nodes:
+  - id: download
+    use: csv
+    with:
+      action: read
+      path: "/data/inventory.csv"
+      delimiter: ","
+  - id: clean
+    use: jsonpath
+    inputs:
+      data: download.rows
+    with:
+      filter: "rows.*"
+  - id: summary
+    use: csv
+    with:
+      action: write
+    inputs:
+      rows: clean.result
+  - id: archive
+    use: sheets
+    with:
+      action: append
+      spreadsheet_id: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+      sheet: "Inventory"
+    inputs:
+      rows: clean.result
+  - id: notify
+    use: email
+    with:
+      to: "ops@example.com"
+      subject: "Inventory Sync Complete"
+      body: "{{ download.count }} rows processed."
 ```
