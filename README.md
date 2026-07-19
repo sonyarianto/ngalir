@@ -176,8 +176,7 @@ Minimal example: see `crates/na-echo/src/main.rs`.
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan. Phase 4 (Production
-Polish) is complete; Phase 6 (AI-Native Workflow Studio) is next.
+See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
 
