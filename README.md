@@ -120,6 +120,22 @@ Minimal example: see `crates/na-echo/src/main.rs`.
 | `NGALIR_NODE_PATH` | Colon-separated directories to search for `na-*` binaries |
 | `NGALIR_VAULT_FILE` | Path to vault JSON file (default `~/.ngalir/vault.json`) |
 
+## Docker
+
+```bash
+# Build the image
+docker build -t ngalir/ngalir .
+
+# Run the CLI
+docker run --rm ngalir/ngalir --help
+
+# Run a flow
+docker run --rm -v /path/to/flows:/flows ngalir/ngalir run /flows/my-flow.yaml
+
+# Daemon services (webhook + schedule)
+docker compose up -d webhook schedule
+```
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)

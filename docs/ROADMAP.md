@@ -18,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 92 unit + integration tests across all crates
-- ✅ 18 node crates: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
+- ✅ 15 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
 - ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
@@ -31,7 +31,7 @@ workflows, and scheduled batch jobs.
 | Gap | Why It Matters |
 |-----|----------------|
 | `na-jsonpath` was dot-path only, now jq-compatible | Upgraded with `.[]`, slices, pipes, object reconstruction |
-| No Docker images or container orchestration | Hard to deploy in production |
+| No Docker images or container orchestration | Dockerfile + docker-compose + CI/CD pipeline ready |
 | No Prometheus metrics or health endpoints | No observability in production |
 | Large payloads held in memory | OOM on files > 100MB |
 | No flow composition (subflows / includes) | Duplication across similar flows |
@@ -87,20 +87,15 @@ Address the remaining gaps between MVP and production-ready system.
 - Backward compatible: all existing dot-path syntax still works
 - 18 unit tests (was 6) covering: pipeline stages, object reconstruction, array slices with negative indices, nested dot-paths in reconstruction
 
-### 4.2 Docker images & CI/CD
+### 4.2 Docker images & CI/CD ✅ (Complete)
 
-**Problem:** No container images or automated release pipeline.
+**Multi-stage Dockerfile, docker-compose, and CI/CD pipeline:**
+- `Dockerfile`: multi-stage build (rust:latest → debian:trixie-slim), copies all 16 binaries to `/usr/local/bin/`, minimal 247 MB image
+- `docker-compose.yml`: webhook (port 8080) and schedule daemon services with persistent volumes
+- `.github/workflows/ci.yml`: lint (fmt + clippy) → test → (on tag) Docker push + release draft with tarball
+- `README.md` updated with Docker usage examples
 
-**Target:**
-- Multi-stage Dockerfile for orchestrator + all node binaries
-- `docker-compose.yml` with webhook + schedule daemon configurations
-- GitHub Actions CI/CD:
-  - Build & test on every push
-  - Docker image build & push on tags
-  - Release draft with pre-built binaries on version tags
-- Version bumps via `cargo release` or similar tooling
-
-**Effort:** 2-3 days.
+**Docker image contains all 15 `na-*` node binaries + `ngalir` orchestrator, ready for flow execution and daemon deployment.**
 
 ### 4.3 Observability (metrics & health)
 
