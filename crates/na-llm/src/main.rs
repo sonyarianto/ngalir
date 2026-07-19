@@ -35,6 +35,17 @@ fn manifest() -> Manifest {
         streaming: true,
         idempotent: true,
         output_mode: None,
+        use_cases: vec![
+            "ai".into(),
+            "llm".into(),
+            "chat".into(),
+            "generation".into(),
+        ],
+        examples: vec![na_contract::Example {
+            input: serde_json::json!({"model": "gpt-4o", "prompt": "Hello"}),
+            output: serde_json::json!({"content": "Hi there!", "model": "gpt-4o", "usage": {"total_tokens": 10}}),
+        }],
+        see_also: vec![],
     }
 }
 

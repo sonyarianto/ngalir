@@ -26,6 +26,9 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: false,
         output_mode: Some("file".into()),
+        use_cases: vec!["file".into(), "io".into(), "storage".into()],
+        examples: vec![],
+        see_also: vec!["csv".into(), "excel".into()],
     }
 }
 

@@ -31,6 +31,9 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: true,
         output_mode: None,
+        use_cases: vec!["email".into(), "notify".into(), "smtp".into()],
+        examples: vec![],
+        see_also: vec![],
     }
 }
 

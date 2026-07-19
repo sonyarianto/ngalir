@@ -32,6 +32,9 @@ fn manifest() -> Manifest {
         streaming: true,
         idempotent: true,
         output_mode: None,
+        use_cases: vec!["sheets".into(), "spreadsheet".into(), "google".into()],
+        examples: vec![],
+        see_also: vec!["csv".into(), "excel".into()],
     }
 }
 

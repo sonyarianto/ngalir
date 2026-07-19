@@ -18,6 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
 - ✅ 146 unit + integration tests across all crates
+- ✅ `ngalir skills` CLI — JSON registry of all node manifests with use_cases, examples, see_also
 - ✅ 15 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
 - ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
 - ✅ NDJSON streaming output for long-running nodes
@@ -162,19 +163,18 @@ This phase transforms Ngalir from a DAG workflow engine into an **AI-native
 workflow studio** where users describe what they want in natural language and
 the system generates, visualizes, and runs the workflow.
 
-### 6.1 Node Skills Registry
+### 6.1 Node Skills Registry ✅ (Complete)
 
-**Problem:** Each node has a `Manifest` (name, description, input/output schema)
-but no structured metadata that an LLM can reason about when composing flows.
+**Structured LLM-readable metadata for all nodes:**
+- Manifest extended with `use_cases: Vec<String>` (tags like `["csv", "etl", "import"]`),
+  `examples: Vec<Example>` (sample input/output pairs), and `see_also: Vec<String>`
+  (related node names)
+- All 15 `na-*` node manifests updated with skills metadata
+- `ngalir skills` CLI command outputs full JSON registry (all manifests)
+- Backward compatible: new fields are `#[serde(default)]`, old manifests still parse
+- Clippy clean, all tests pass
 
-**Target:**
-- Extend Manifest with `use_cases: Vec<String>` (tags like `["csv", "etl", "import"]`)
-- Add `examples: Vec<{input, output}>` — sample JSON pairs showing typical usage
-- Add `see_also: Vec<String>` — related node names (e.g. csv → excel, google-sheets)
-- Ship a `ngalir skills` CLI command that outputs the full skills registry as JSON
-- The registry becomes the context prompt for AI flow generation
-
-**Effort:** 1-2 days.
+**Effort:** 1-2 days. ✅
 
 ### 6.2 AI Flow Generator
 

@@ -31,6 +31,12 @@ fn manifest() -> Manifest {
         streaming: true,
         idempotent: true,
         output_mode: None,
+        use_cases: vec!["csv".into(), "etl".into(), "import".into(), "export".into()],
+        examples: vec![na_contract::Example {
+            input: serde_json::json!({"action": "read", "path": "data.csv"}),
+            output: serde_json::json!({"count": 3, "columns": ["name", "age"]}),
+        }],
+        see_also: vec!["excel".into(), "google-sheets".into()],
     }
 }
 

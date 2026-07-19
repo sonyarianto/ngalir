@@ -70,7 +70,7 @@ use tokio::process::Command;
 #[command(
     name = "ngalir",
     version,
-    about = "n8n-like flow engine, built in Rust"
+    about = "Flow automation engine, built in Rust"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -100,6 +100,8 @@ enum Commands {
         /// Path to Flow Spec YAML file
         flow: String,
     },
+    /// Output the full node skills registry as JSON (for AI context)
+    Skills,
 }
 
 #[tokio::main]
@@ -134,6 +136,7 @@ async fn main() -> Result<()> {
         }
         Commands::Nodes => cmd_nodes().await,
         Commands::Validate { flow } => cmd_validate(&flow).await,
+        Commands::Skills => cmd_skills().await,
     }
 }
 
@@ -312,6 +315,20 @@ async fn cmd_nodes() -> Result<()> {
             bin.manifest.version, bin.manifest.description
         );
     }
+    Ok(())
+}
+
+async fn cmd_skills() -> Result<()> {
+    let binaries = scan_binaries();
+    let mut registry = Vec::new();
+    for name in &binaries {
+        let bin = match describe_binary(name).await {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        registry.push(bin.manifest);
+    }
+    println!("{}", serde_json::to_string_pretty(&registry)?);
     Ok(())
 }
 

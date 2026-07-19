@@ -30,6 +30,9 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: false,
         output_mode: None,
+        use_cases: vec!["http".into(), "api".into(), "webhook".into()],
+        examples: vec![],
+        see_also: vec![],
     }
 }
 

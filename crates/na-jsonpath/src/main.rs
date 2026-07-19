@@ -1,4 +1,4 @@
-use na_contract::{print_manifest, read_input, Manifest};
+use na_contract::{print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
 enum PathSegment<'a> {
@@ -30,6 +30,17 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: true,
         output_mode: None,
+        use_cases: vec![
+            "transform".into(),
+            "filter".into(),
+            "json".into(),
+            "jq".into(),
+        ],
+        examples: vec![Example {
+            input: serde_json::json!({"items": [{"id": 1}, {"id": 2}]}),
+            output: serde_json::json!([{"id": 1}, {"id": 2}]),
+        }],
+        see_also: vec!["echo".into()],
     }
 }
 

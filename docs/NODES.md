@@ -1,7 +1,8 @@
 # Nodes
 
 Ngalir discovers nodes dynamically — any `na-<name>` binary on `PATH` or
-`NGALIR_NODE_PATH` is available. Run `ngalir nodes` to list what's installed.
+`NGALIR_NODE_PATH` is available. Run `ngalir nodes` to list what's installed
+or `ngalir skills` to get the full machine-readable registry (JSON).
 
 ## Core
 

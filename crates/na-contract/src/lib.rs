@@ -10,6 +10,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// A sample input/output pair for documentation / AI context.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Example {
+    pub input: Value,
+    pub output: Value,
+}
+
 /// Capability manifest emitted by `na-* --describe`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
@@ -34,6 +41,15 @@ pub struct Manifest {
     /// Output transport: "stdout" (default, JSON via stdout) or "file" (write to NGALIR_OUTPUT_DIR, emit file path).
     #[serde(default)]
     pub output_mode: Option<String>,
+    /// Tags describing use-case categories (e.g. ["csv", "etl", "import"]).
+    #[serde(default)]
+    pub use_cases: Vec<String>,
+    /// Example input/output pairs for documentation and AI context.
+    #[serde(default)]
+    pub examples: Vec<Example>,
+    /// Related node names (e.g. ["csv", "excel", "google-sheets"]).
+    #[serde(default)]
+    pub see_also: Vec<String>,
 }
 
 impl Default for Manifest {
@@ -48,6 +64,9 @@ impl Default for Manifest {
             streaming: false,
             idempotent: false,
             output_mode: None,
+            use_cases: Vec::new(),
+            examples: Vec::new(),
+            see_also: Vec::new(),
         }
     }
 }
@@ -128,6 +147,12 @@ mod tests {
             streaming: true,
             idempotent: false,
             output_mode: Some("stdout".into()),
+            use_cases: vec!["test".into()],
+            examples: vec![Example {
+                input: json!({"x": 1}),
+                output: json!({"result": 2}),
+            }],
+            see_also: vec![],
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Manifest = serde_json::from_str(&json).unwrap();

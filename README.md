@@ -42,7 +42,7 @@ Commands:
   nodes      List all na-* on PATH             ngalir nodes
   validate   Validate without running          ngalir validate flow.yaml
   generate   Generate a flow from a prompt     ngalir generate "fetch API → email result"
-  skills     List node skills registry (JSON)  ngalir skills
+  skills     List node skills registry (JSON)  ngalir skills | jq .
   help       Print help
 
 Run flags:

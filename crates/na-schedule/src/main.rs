@@ -45,6 +45,14 @@ fn manifest() -> Manifest {
         streaming: true,
         idempotent: false,
         output_mode: None,
+        use_cases: vec![
+            "trigger".into(),
+            "cron".into(),
+            "schedule".into(),
+            "timer".into(),
+        ],
+        examples: vec![],
+        see_also: vec!["webhook".into()],
     }
 }
 

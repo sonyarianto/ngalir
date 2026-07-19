@@ -26,6 +26,14 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: true,
         output_mode: None,
+        use_cases: vec![
+            "secret".into(),
+            "credential".into(),
+            "security".into(),
+            "vault".into(),
+        ],
+        examples: vec![],
+        see_also: vec![],
     }
 }
 

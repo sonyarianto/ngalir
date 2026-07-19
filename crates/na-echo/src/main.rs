@@ -2,7 +2,7 @@
 //!
 //! Demonstrates `--describe`, `--version`, and stdin/stdout JSON execution.
 
-use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
+use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
 fn manifest() -> Manifest {
@@ -23,6 +23,12 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: true,
         output_mode: None,
+        use_cases: vec!["test".into(), "debug".into()],
+        examples: vec![Example {
+            input: serde_json::json!({"message": "hello"}),
+            output: serde_json::json!({"echo": "hello"}),
+        }],
+        see_also: vec![],
     }
 }
 

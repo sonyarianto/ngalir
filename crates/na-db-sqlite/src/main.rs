@@ -26,6 +26,14 @@ fn manifest() -> Manifest {
         streaming: false,
         idempotent: false,
         output_mode: None,
+        use_cases: vec![
+            "database".into(),
+            "sql".into(),
+            "sqlite".into(),
+            "query".into(),
+        ],
+        examples: vec![],
+        see_also: vec!["db-postgres".into(), "db-mysql".into()],
     }
 }
 
