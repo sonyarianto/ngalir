@@ -1,6 +1,6 @@
 # Ngalir
 
-**n8n-like flow automation engine, built in Rust.** Nodes are standalone CLI
+**Flow automation engine, built in Rust.** Nodes are standalone CLI
 binaries (`na-*`); flows are declarative YAML DAGs executed by `ngalir`.
 Production-ready: containerised, observable via Prometheus, supports subflows,
 streaming, checkpoint/resume, and AI-powered workflow generation.
