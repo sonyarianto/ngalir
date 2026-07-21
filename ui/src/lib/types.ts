@@ -4,6 +4,7 @@ export interface FlowSpec {
   description?: string
   concurrency?: number
   nodes: NodeSpec[]
+  notes?: NoteSpec[]
 }
 
 export interface NodeSpec {
@@ -14,6 +15,15 @@ export interface NodeSpec {
   when?: string
   on_error?: string
   exit?: boolean
+}
+
+export interface NoteSpec {
+  id: string
+  text: string
+  position: { x: number; y: number }
+  width: number
+  height: number
+  color: string
 }
 
 export interface Position {
@@ -28,6 +38,10 @@ export interface CanvasNode extends NodeSpec {
   input?: Record<string, unknown>
   output?: Record<string, unknown>
   error?: string
+}
+
+export interface CanvasNote extends NoteSpec {
+  selected?: boolean
 }
 
 export interface Port {

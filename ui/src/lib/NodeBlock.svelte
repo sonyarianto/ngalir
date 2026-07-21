@@ -15,16 +15,36 @@
   const HEADER_H = 24
   const NODE_W = 160
 
-  const inputPorts = $derived(Object.keys(node.inputs ?? {}))
-  const outputPorts = $derived(['output'])
+  const manifest = $derived(store.skillsMap[node.use])
+
+  const inputPorts = $derived(
+    manifest
+      ? Object.keys(manifest.inputs)
+      : Object.keys(node.inputs ?? {})
+  )
+  const outputPorts = $derived(
+    manifest && Object.keys(manifest.outputs).length > 0
+      ? Object.keys(manifest.outputs)
+      : ['output']
+  )
 
   function portY(index: number, total: number) {
     return HEADER_H + 4 + index * PORT_SPACING + PORT_SPACING / 2
   }
 
+  function isConnected(port: string): boolean {
+    return !!(node.inputs as Record<string, string>)?.[port]
+  }
+
   function handleMouseDown(e: MouseEvent) {
     e.stopPropagation()
-    store.selectNode(node.id)
+    if (e.shiftKey) {
+      store.toggleNodeSelection(node.id)
+    } else {
+      if (!store.selectedIds.includes(node.id)) {
+        store.selectNode(node.id)
+      }
+    }
     dragging = true
     const rect = el?.getBoundingClientRect()
     offsetX = e.clientX - (rect?.left ?? 0)
@@ -76,15 +96,15 @@
   onmousedown={handleMouseDown}
 >
   <div class="px-2 py-1 bg-[#2a2a4a] border-b border-[#333] rounded-t-md font-semibold text-[#7c3aed] font-mono flex items-center gap-2">
-    <span class="flex-1">{node.use}</span>
+      <span class="flex-1">{node.use}</span>
     {#if node.status}
-      <span
+      <span role="status"
         class="w-2 h-2 rounded-full inline-block"
         class:bg-yellow-400={node.status === 'pending'}
         class:bg-blue-400={node.status === 'running'}
         class:bg-green-400={node.status === 'done'}
         class:bg-red-400={node.status === 'failed'}
-      />
+      ></span>
     {/if}
   </div>
   <div class="px-2 py-1 text-[#aaa] min-h-[24px]">
@@ -92,18 +112,20 @@
     {#each inputPorts as port, i}
       <div class="flex items-center gap-1 text-[11px] text-[#999] relative">
         <span
-          class="w-1.5 h-1.5 rounded-full bg-[#7c3aed] inline-block cursor-crosshair z-20"
+          class="w-1.5 h-1.5 rounded-full inline-block cursor-crosshair z-20"
+          class:bg-[#7c3aed]={isConnected(port)}
+          class:bg-[#555]={!isConnected(port)}
           data-port-input
           data-node-id={node.id}
           data-port={port}
           onmouseup={(e) => handlePortMouseUp(e, port)}
-        />{port} ← {(node.inputs as Record<string, string>)?.[port] ?? ''}
+          role="button"></span>{port} {#if isConnected(port)}← {(node.inputs as Record<string, string>)?.[port] ?? ''}{:else}(unconnected){/if}
       </div>
     {/each}
     {#each outputPorts as port, i}
       <div class="flex items-center justify-end gap-1 text-[11px] text-[#999] relative">
-        <span class="flex-1" />
-        <span
+        <span class="flex-1"></span>
+        <span role="button"
           class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block cursor-crosshair z-20"
           data-port-output
           data-node-id={node.id}

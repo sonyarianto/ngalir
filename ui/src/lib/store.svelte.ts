@@ -1,10 +1,13 @@
 import dagre from 'dagre'
-import { type CanvasNode, type Wire } from './types'
+import * as yaml from 'js-yaml'
+import { type CanvasNode, type CanvasNote, type NodeManifest, type Wire } from './types'
 
 let nodes = $state<CanvasNode[]>([])
 let wires = $state<Wire[]>([])
-let selectedId = $state<string | null>(null)
+let notes = $state<CanvasNote[]>([])
+let selectedIds = $state<string[]>([])
 let selectedWireId = $state<string | null>(null)
+let selectedNoteId = $state<string | null>(null)
 let flowName = $state('untitled')
 let filename = $state('')
 let running = $state(false)
@@ -14,11 +17,15 @@ let currentFlowId = $state('')
 let savedFlows = $state<{ name: string; modified: string }[]>([])
 let showFlowList = $state(false)
 let draggingWire = $state<{ fromNodeId: string; fromPort: string; mouseX: number; mouseY: number } | null>(null)
+let reconnectingWire = $state<{ wireId: string; side: 'from' | 'to'; mouseX: number; mouseY: number } | null>(null)
+let selectionBox = $state<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 let ws: WebSocket | null = $state(null)
 let panX = $state(0)
 let panY = $state(0)
 let zoom = $state(1)
-type Snapshot = { nodes: CanvasNode[]; wires: Wire[] }
+let skillsMap = $state<Record<string, NodeManifest>>({})
+
+type Snapshot = { nodes: CanvasNode[]; wires: Wire[]; notes: CanvasNote[] }
 let undoStack = $state<Snapshot[]>([])
 let redoStack = $state<Snapshot[]>([])
 
@@ -26,6 +33,7 @@ function snapshot(): Snapshot {
   return {
     nodes: JSON.parse(JSON.stringify(nodes)),
     wires: JSON.parse(JSON.stringify(wires)),
+    notes: JSON.parse(JSON.stringify(notes)),
   }
 }
 
@@ -41,8 +49,10 @@ function undo() {
   undoStack = undoStack.slice(0, -1)
   nodes = JSON.parse(JSON.stringify(prev.nodes))
   wires = JSON.parse(JSON.stringify(prev.wires))
-  selectedId = null
+  notes = JSON.parse(JSON.stringify(prev.notes))
+  selectedIds = []
   selectedWireId = null
+  selectedNoteId = null
 }
 
 function redo() {
@@ -52,8 +62,10 @@ function redo() {
   redoStack = redoStack.slice(0, -1)
   nodes = JSON.parse(JSON.stringify(next.nodes))
   wires = JSON.parse(JSON.stringify(next.wires))
-  selectedId = null
+  notes = JSON.parse(JSON.stringify(next.notes))
+  selectedIds = []
   selectedWireId = null
+  selectedNoteId = null
 }
 
 function setPan(x: number, y: number) {
@@ -66,10 +78,19 @@ function setZoom(z: number) {
 
 function selectWire(id: string | null) {
   selectedWireId = id
+  selectedIds = []
+  selectedNoteId = null
   if (id) {
     for (const n of nodes) n.selected = false
-    selectedId = null
   }
+}
+
+function selectNote(id: string | null) {
+  selectedNoteId = id
+  selectedWireId = null
+  selectedIds = []
+  for (const n of nodes) n.selected = false
+  for (const nt of notes) nt.selected = nt.id === id
 }
 
 function connectWs() {
@@ -212,7 +233,11 @@ async function loadFlow(name: string) {
     with: n.with || {},
     inputs: n.inputs || {},
   }))
+  notes = (flow.notes || []).map((nt: CanvasNote) => ({ ...nt, selected: false }))
   wires = []
+  selectedIds = []
+  selectedWireId = null
+  selectedNoteId = null
   showFlowList = false
 }
 
@@ -247,18 +272,81 @@ function removeNode(id: string) {
   pushUndo()
   nodes = nodes.filter((n) => n.id !== id)
   wires = wires.filter((w) => w.from.nodeId !== id && w.to.nodeId !== id)
-  if (selectedId === id) selectedId = null
+  selectedIds = selectedIds.filter((sid) => sid !== id)
 }
 
 function selectNode(id: string | null) {
+  selectedIds = id ? [id] : []
+  selectedWireId = null
+  selectedNoteId = null
   for (const n of nodes) n.selected = n.id === id
-  selectedId = id
-  if (id) selectedWireId = null
+}
+
+function toggleNodeSelection(id: string) {
+  selectedWireId = null
+  selectedNoteId = null
+  if (selectedIds.includes(id)) {
+    selectedIds = selectedIds.filter((sid) => sid !== id)
+  } else {
+    selectedIds = [...selectedIds, id]
+  }
+  for (const n of nodes) n.selected = selectedIds.includes(n.id)
+}
+
+function selectAll() {
+  selectedIds = nodes.map((n) => n.id)
+  selectedWireId = null
+  selectedNoteId = null
+  for (const n of nodes) n.selected = true
+}
+
+function duplicateSelected() {
+  if (selectedIds.length === 0) return
+  pushUndo()
+  const idMap = new Map<string, string>()
+  const newNodes: CanvasNode[] = []
+  for (const n of nodes) {
+    if (selectedIds.includes(n.id)) {
+      const newId = `${n.id}-copy`
+      idMap.set(n.id, newId)
+      newNodes.push({
+        ...JSON.parse(JSON.stringify(n)),
+        id: newId,
+        position: { x: n.position.x + 40, y: n.position.y + 40 },
+        selected: false,
+      })
+    }
+  }
+  const newWires: Wire[] = []
+  for (const w of wires) {
+    if (selectedIds.includes(w.from.nodeId) && selectedIds.includes(w.to.nodeId)) {
+      newWires.push({
+        ...JSON.parse(JSON.stringify(w)),
+        id: `${w.id}-copy`,
+        from: { ...w.from, nodeId: idMap.get(w.from.nodeId)! },
+        to: { ...w.to, nodeId: idMap.get(w.to.nodeId)! },
+      })
+    }
+  }
+  nodes = [...nodes, ...newNodes]
+  wires = [...wires, ...newWires]
+  selectedIds = newNodes.map((n) => n.id)
+  for (const n of nodes) n.selected = selectedIds.includes(n.id)
 }
 
 function updateNodePosition(id: string, position: { x: number; y: number }) {
   const n = nodes.find((n) => n.id === id)
-  if (n) n.position = position
+  if (!n) return
+  const dx = position.x - n.position.x
+  const dy = position.y - n.position.y
+  n.position = position
+  if (selectedIds.includes(id)) {
+    for (const other of nodes) {
+      if (other.id !== id && selectedIds.includes(other.id)) {
+        other.position = { x: other.position.x + dx, y: other.position.y + dy }
+      }
+    }
+  }
 }
 
 function updateNodeProp(id: string, key: string, value: unknown) {
@@ -313,8 +401,89 @@ function endDragWire(targetNodeId?: string, targetPort?: string) {
   draggingWire = null
 }
 
+function startReconnectWire(wireId: string, side: 'from' | 'to', mouseX: number, mouseY: number) {
+  pushUndo()
+  reconnectingWire = { wireId, side, mouseX, mouseY }
+}
+
+function updateReconnectWire(mouseX: number, mouseY: number) {
+  if (reconnectingWire) reconnectingWire = { ...reconnectingWire, mouseX, mouseY }
+}
+
+function endReconnectWire(targetNodeId?: string, targetPort?: string) {
+  const rw = reconnectingWire
+  if (!rw) return
+  const wire = wires.find((w) => w.id === rw.wireId)
+  if (!wire) { reconnectingWire = null; return }
+  if (targetNodeId && targetPort) {
+    const side = rw.side
+    removeWire(wire.id)
+    if (side === 'from') {
+      addWire({
+        id: `${targetNodeId}-${targetPort}-${wire.to.nodeId}-${wire.to.port}`,
+        from: { nodeId: targetNodeId, port: targetPort, label: targetPort, type: 'output' },
+        to: wire.to,
+      })
+    } else {
+      addWire({
+        id: `${wire.from.nodeId}-${wire.from.port}-${targetNodeId}-${targetPort}`,
+        from: wire.from,
+        to: { nodeId: targetNodeId, port: targetPort, label: targetPort, type: 'input' },
+      })
+    }
+  } else {
+    removeWire(wire.id)
+  }
+  reconnectingWire = null
+}
+
+function setSelectionBox(box: { x1: number; y1: number; x2: number; y2: number } | null) {
+  selectionBox = box
+}
+
+function applySelectionBox() {
+  if (!selectionBox) return
+  const x1 = Math.min(selectionBox.x1, selectionBox.x2)
+  const y1 = Math.min(selectionBox.y1, selectionBox.y2)
+  const x2 = Math.max(selectionBox.x1, selectionBox.x2)
+  const y2 = Math.max(selectionBox.y1, selectionBox.y2)
+  selectedIds = nodes
+    .filter((n) => n.position.x >= x1 && n.position.x + 160 <= x2 && n.position.y >= y1 && n.position.y + 100 <= y2)
+    .map((n) => n.id)
+  selectedWireId = null
+  selectedNoteId = null
+  for (const n of nodes) n.selected = selectedIds.includes(n.id)
+  selectionBox = null
+}
+
+function addNote(position: { x: number; y: number }) {
+  pushUndo()
+  const id = `note-${notes.length + 1}`
+  notes.push({
+    id,
+    text: 'Type here...',
+    position,
+    width: 200,
+    height: 120,
+    color: '#fff3cd',
+    selected: false,
+  })
+  selectNote(id)
+}
+
+function removeNote(id: string) {
+  pushUndo()
+  notes = notes.filter((n) => n.id !== id)
+  if (selectedNoteId === id) selectedNoteId = null
+}
+
+function updateNote(id: string, props: Partial<CanvasNote>) {
+  const note = notes.find((n) => n.id === id)
+  if (note) Object.assign(note, props)
+}
+
 function exportFlow(): string {
-  const flow = {
+  const flow: Record<string, unknown> = {
     version: 1,
     name: flowName,
     nodes: nodes.map(({ id, use, with: w, inputs, when, on_error, exit }) => ({
@@ -327,24 +496,94 @@ function exportFlow(): string {
       ...(exit ? { exit } : {}),
     })),
   }
+  if (notes.length > 0) {
+    flow.notes = notes.map(({ id, text, position, width, height, color }) => ({
+      id, text, position, width, height, color,
+    }))
+  }
   return JSON.stringify(flow, null, 2)
 }
 
-function importFlow(text: string) {
+function importFlowText(text: string) {
   try {
     pushUndo()
-    const flow = JSON.parse(text)
-    flowName = flow.name || 'untitled'
-    nodes = (flow.nodes || []).map((n: CanvasNode, i: number) => ({
+    const data = JSON.parse(text)
+    flowName = data.name || 'untitled'
+    nodes = (data.nodes || []).map((n: CanvasNode, i: number) => ({
       ...n,
       position: n.position || { x: 100 + i * 40, y: 100 + i * 80 },
       with: n.with || {},
       inputs: n.inputs || {},
     }))
+    notes = (data.notes || []).map((nt: CanvasNote) => ({ ...nt, selected: false }))
     wires = []
+    selectedIds = []
     selectedWireId = null
+    selectedNoteId = null
   } catch {
     alert('Invalid flow JSON')
+  }
+}
+
+function exportYaml(): string {
+  const flow: Record<string, unknown> = {
+    version: 1,
+    name: flowName,
+    nodes: nodes.map(({ id, use, with: w, inputs, when, on_error, exit, position }) => ({
+      id,
+      use,
+      ...(w && Object.keys(w).length ? { with: w } : {}),
+      ...(inputs && Object.keys(inputs).length ? { inputs } : {}),
+      ...(when ? { when } : {}),
+      ...(on_error ? { on_error } : {}),
+      ...(exit ? { exit } : {}),
+      position: { x: Math.round(position.x), y: Math.round(position.y) },
+    })),
+  }
+  if (notes.length > 0) {
+    flow.notes = notes.map(({ id, text, position, width, height, color }) => ({
+      id, text, position, width, height, color,
+    }))
+  }
+  return yaml.dump(flow, { indent: 2, lineWidth: 120, noRefs: true })
+}
+
+function importYaml(text: string) {
+  try {
+    pushUndo()
+    const data = yaml.load(text) as Record<string, unknown>
+    flowName = (data.name as string) || 'untitled'
+    const rawNodes = (data.nodes as Array<Record<string, unknown>>) || []
+    nodes = rawNodes.map((n: Record<string, unknown>, i: number) => {
+      const pos = n.position as { x: number; y: number } | undefined
+      return {
+        id: n.id as string,
+        use: n.use as string,
+        with: (n.with as Record<string, unknown>) || {},
+        inputs: (n.inputs as Record<string, string>) || {},
+        when: n.when as string | undefined,
+        on_error: n.on_error as string | undefined,
+        exit: n.exit as boolean | undefined,
+        position: pos || { x: 100 + i * 40, y: 100 + i * 80 },
+        selected: false,
+      } as CanvasNode
+    })
+    const rawNotes = (data.notes as Array<Record<string, unknown>>) || []
+    notes = rawNotes.map((nt: Record<string, unknown>) => ({
+      id: nt.id as string,
+      text: nt.text as string || '',
+      position: nt.position as { x: number; y: number },
+      width: (nt.width as number) || 200,
+      height: (nt.height as number) || 120,
+      color: (nt.color as string) || '#fff3cd',
+      selected: false,
+    })) as CanvasNote[]
+    wires = []
+    selectedIds = []
+    selectedWireId = null
+    selectedNoteId = null
+  } catch {
+    alert('Invalid flow YAML')
   }
 }
 
@@ -360,7 +599,10 @@ function loadSample() {
     { id: 'w1', from: { nodeId: 'src', port: 'rows', label: 'rows', type: 'output' }, to: { nodeId: 'transform', port: 'data', label: 'data', type: 'input' } },
     { id: 'w2', from: { nodeId: 'transform', port: 'result', label: 'result', type: 'output' }, to: { nodeId: 'notify', port: 'body', label: 'body', type: 'input' } },
   ]
+  notes = []
+  selectedIds = []
   selectedWireId = null
+  selectedNoteId = null
 }
 
 function autoLayout() {
@@ -377,12 +619,25 @@ function autoLayout() {
   }
 }
 
+async function fetchSkills() {
+  try {
+    const res = await fetch('/api/skills')
+    if (!res.ok) return
+    const data: NodeManifest[] = await res.json()
+    const map: Record<string, NodeManifest> = {}
+    for (const entry of data) map[entry.name] = entry
+    skillsMap = map
+  } catch { /* ignore */ }
+}
+
 export function getStore() {
   return {
     get nodes() { return nodes },
     get wires() { return wires },
-    get selectedId() { return selectedId },
+    get notes() { return notes },
+    get selectedIds() { return selectedIds },
     get selectedWireId() { return selectedWireId },
+    get selectedNoteId() { return selectedNoteId },
     get flowName() { return flowName },
     get filename() { return filename },
     get running() { return running },
@@ -391,16 +646,23 @@ export function getStore() {
     get savedFlows() { return savedFlows },
     get showFlowList() { return showFlowList },
     get draggingWire() { return draggingWire },
+    get reconnectingWire() { return reconnectingWire },
+    get selectionBox() { return selectionBox },
     get panX() { return panX },
     get panY() { return panY },
     get zoom() { return zoom },
+    get skillsMap() { return skillsMap },
     set flowName(v: string) { flowName = v },
     set filename(v: string) { filename = v },
     set showFlowList(v: boolean) { showFlowList = v },
     addNode,
     removeNode,
     selectNode,
+    toggleNodeSelection,
+    selectAll,
+    duplicateSelected,
     selectWire,
+    selectNote,
     updateNodePosition,
     updateNodeProp,
     addWire,
@@ -408,6 +670,14 @@ export function getStore() {
     startDragWire,
     updateDragWire,
     endDragWire,
+    startReconnectWire,
+    updateReconnectWire,
+    endReconnectWire,
+    setSelectionBox,
+    applySelectionBox,
+    addNote,
+    removeNote,
+    updateNote,
     setPan,
     setZoom,
     undo,
@@ -415,7 +685,9 @@ export function getStore() {
     pushUndo,
     autoLayout,
     exportFlow,
-    importFlow,
+    exportYaml,
+    importFlow: importFlowText,
+    importYaml,
     loadSample,
     runFlow,
     runStepFlow,
@@ -427,5 +699,6 @@ export function getStore() {
     loadFlow,
     deleteFlow,
     listFlows,
+    fetchSkills,
   }
 }

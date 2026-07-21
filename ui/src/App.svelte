@@ -6,7 +6,7 @@
   import { getStore } from './lib/store.svelte.js'
 
   const store = getStore()
-  $effect(() => { store.loadSample() })
+  $effect(() => { store.loadSample(); store.fetchSkills() })
 </script>
 
 <div class="h-screen flex flex-col bg-[#0f0f23] text-[#e0e0e0]">

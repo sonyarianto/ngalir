@@ -3,9 +3,9 @@
 
   const store = getStore()
 
-  function handleSave() {
-    const yaml = store.exportFlow()
-    const blob = new Blob([yaml], { type: 'text/yaml' })
+  function handleDownloadYaml() {
+    const yamlStr = store.exportYaml()
+    const blob = new Blob([yamlStr], { type: 'text/yaml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -14,31 +14,60 @@
     URL.revokeObjectURL(url)
   }
 
+  function handleDownloadJson() {
+    const json = store.exportFlow()
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = store.filename?.replace(/\.yaml$/, '.json') || `${store.flowName}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function handleLoad() {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = '.yaml,.json'
+    input.accept = '.yaml,.json,.yml'
     input.onchange = async () => {
       const file = input.files?.[0]
       if (!file) return
       store.filename = file.name
-      store.importFlow(await file.text())
+      const text = await file.text()
+      if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+        store.importYaml(text)
+      } else {
+        store.importFlow(text)
+      }
     }
     input.click()
+  }
+
+  function handleAddNote() {
+    store.addNote({ x: 200 + Math.random() * 100, y: 150 + Math.random() * 100 })
   }
 </script>
 
 <header class="flex items-center gap-2 px-4 py-2 bg-[#1a1a2e] border-b border-[#333] h-12">
   <span class="font-bold text-lg text-[#7c3aed]">Ngalir</span>
   <span class="text-sm opacity-60">{store.flowName}</span>
-  <div class="flex-1" />
+  <div class="flex-1"></div>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.listFlows()}>Flows</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleLoad}>Open</button>
-  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleSave}>Download</button>
+  <div class="relative group">
+    <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]">Export</button>
+    <div class="absolute top-full right-0 mt-1 hidden group-hover:block z-50 bg-[#1a1a2e] border border-[#444] rounded shadow-xl">
+      <button class="block w-full px-3 py-1.5 text-sm text-left text-[#ccc] hover:bg-[#2a2a3e] cursor-pointer whitespace-nowrap" onclick={handleDownloadYaml}>Export YAML</button>
+      <button class="block w-full px-3 py-1.5 text-sm text-left text-[#ccc] hover:bg-[#2a2a3e] cursor-pointer whitespace-nowrap" onclick={handleDownloadJson}>Export JSON</button>
+    </div>
+  </div>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.saveFlow()}>Save</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.loadSample()}>Sample</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleAddNote}>Note</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.selectAll()}>Select All</button>
+  <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.duplicateSelected()}>Duplicate</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.autoLayout()}>Layout</button>
-  <span class="w-px h-4 bg-[#444]" />
+  <span class="w-px h-4 bg-[#444]"></span>
   <button class="px-2 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.undo()}>↩</button>
   <button class="px-2 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.redo()}>↪</button>
   {#if store.stepReady}

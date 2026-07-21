@@ -3,41 +3,42 @@
 
   const store = getStore()
 
-  let node = $derived(store.nodes.find((n) => n.id === store.selectedId))
+  let node = $derived(store.nodes.find((n) => n.id === store.selectedIds[store.selectedIds.length - 1]))
+  let note = $derived(store.notes.find((n) => n.id === store.selectedNoteId))
 
   function updateWhen(e: Event) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n) return
     n.when = (e.target as HTMLInputElement).value || undefined
   }
 
   function updateOnError(e: Event) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n) return
     n.on_error = (e.target as HTMLInputElement).value || undefined
   }
 
   function updateId(e: Event) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n) return
     n.id = (e.target as HTMLInputElement).value
   }
 
   function updateUse(e: Event) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n) return
     n.use = (e.target as HTMLInputElement).value
   }
 
   function updateWith(e: Event) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n) return
     try { n.with = JSON.parse((e.target as HTMLTextAreaElement).value) }
     catch {}
   }
 
   function addInput() {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n) return
     if (!n.inputs) n.inputs = {}
     const key = `input${Object.keys(n.inputs).length + 1}`
@@ -45,13 +46,13 @@
   }
 
   function removeInput(key: string) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n || !n.inputs) return
     delete (n.inputs as Record<string, string>)[key]
   }
 
   function updateInputKey(oldKey: string, newKey: string) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n || !n.inputs) return
     const val = (n.inputs as Record<string, string>)[oldKey]
     delete (n.inputs as Record<string, string>)[oldKey]
@@ -59,15 +60,33 @@
   }
 
   function updateInputVal(key: string, val: string) {
-    const n = store.nodes.find((n) => n.id === store.selectedId)
+    const n = store.nodes.find((n) => n.id === node?.id)
     if (!n || !n.inputs) return
     ;(n.inputs as Record<string, string>)[key] = val
   }
 </script>
 
 <aside class="w-56 bg-[#16162a] border-l border-[#333] p-2 overflow-y-auto text-xs">
-  <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Properties</h3>
-  {#if node}
+  {#if note}
+    <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Note Properties</h3>
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
+      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={note.id} disabled />
+    </div>
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">position</label>
+      <div class="text-[11px] text-[#999]">x: {Math.round(note.position.x)}, y: {Math.round(note.position.y)}</div>
+    </div>
+    <div class="mb-2">
+      <label class="block text-[10px] text-[#888] uppercase mb-0.5">size</label>
+      <div class="flex gap-2 items-center">
+        <input class="w-16 px-1.5 py-0.5 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" type="number" value={note.width} oninput={(e) => store.updateNote(note.id, { width: parseInt(e.currentTarget.value) || 200 })} />
+        <span class="text-[#555]">×</span>
+        <input class="w-16 px-1.5 py-0.5 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" type="number" value={note.height} oninput={(e) => store.updateNote(note.id, { height: parseInt(e.currentTarget.value) || 120 })} />
+      </div>
+    </div>
+  {:else if node}
+    <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Properties</h3>
     <div class="mb-2">
       <label class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
       <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.id} oninput={updateId} />
@@ -86,7 +105,7 @@
     </div>
     <div class="mb-2">
       <label class="block text-[10px] text-[#888] uppercase mb-0.5">with (config)</label>
-      <textarea class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border resize-y" value={JSON.stringify(node.with ?? {}, null, 2)} oninput={updateWith} rows="4" />
+      <textarea class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border resize-y" value={JSON.stringify(node.with ?? {}, null, 2)} oninput={updateWith} rows="4"></textarea>
     </div>
     <div class="mb-2">
       <label class="block text-[10px] text-[#888] uppercase mb-0.5">inputs</label>
@@ -100,6 +119,17 @@
       {/each}
       <button class="w-full mt-1 px-1 py-0.5 border border-[#333] rounded bg-[#1e1e36] text-[#ccc] text-[11px] cursor-pointer hover:bg-[#2e2e4e]" onclick={addInput}>+ Add input</button>
     </div>
+    {#if store.skillsMap[node.use]}
+      <div class="border-t border-[#333] pt-2 mt-2">
+        <h4 class="text-[10px] text-[#7c3aed] uppercase tracking-wider mb-1">Ports (from manifest)</h4>
+        <div class="text-[10px] text-[#888]">
+          <span class="text-green-400">Outputs:</span> {Object.keys(store.skillsMap[node.use].outputs).join(', ') || 'output'}
+        </div>
+        <div class="text-[10px] text-[#888]">
+          <span class="text-[#7c3aed]">Inputs:</span> {Object.keys(store.skillsMap[node.use].inputs).join(', ')}
+        </div>
+      </div>
+    {/if}
     {#if node.input || node.output || node.error || node.status}
       <div class="border-t border-[#333] pt-2 mt-2">
         <h4 class="text-[10px] text-[#7c3aed] uppercase tracking-wider mb-1">Preview</h4>
@@ -126,7 +156,11 @@
         {/if}
       </div>
     {/if}
+  {:else if store.selectedIds.length > 1}
+    <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Multi-selection</h3>
+    <p class="text-[#999] text-[11px]">{store.selectedIds.length} nodes selected</p>
+    <p class="text-[#666] text-[10px] mt-1">Use Ctrl+D to duplicate or Delete to remove</p>
   {:else}
-    <p class="text-[#555] italic text-center mt-8">Select a node to edit</p>
+    <p class="text-[#555] italic text-center mt-8">Select a node, note, or wire</p>
   {/if}
 </aside>

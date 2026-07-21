@@ -29,16 +29,11 @@ workflows, and scheduled batch jobs.
 - ✅ Per-provider DB split (postgres / mysql / sqlite)
 - ✅ Web UI: Svelte 5 flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, snapshot comparison
 - ✅ Canvas UX: wire management (click/delete), zoom & pan, auto-layout (dagre), undo/redo (50-step), keyboard shortcuts
+- ✅ Advanced canvas: multi-select & group operations (rubber-band, shift-click, group move/delete/duplicate), wire reconnection (drag endpoints to rewire), live port discovery (node manifests from `/api/skills`), sticky notes (editable text, colors, resize), native YAML import/export
 
 **What could be improved:**
 
 | Gap | Why It Matters |
-|-----|----------------|
-| No multi-select or group operations | Moving 5 nodes means dragging them one by one |
-| Wires are fixed once created | Reconnecting to a different port requires delete + recreate |
-| Node ports are hardcoded "output" | Editor doesn't show actual port names from node manifests |
-| No canvas annotations | Can't document flow logic inline |
-| JSON-only export | Native format is YAML, users can't roundtrip `.yaml` files |
 | `na-jsonpath` was dot-path only, now jq-compatible | Upgraded with `.[]`, slices, pipes, object reconstruction |
 | No Docker images or container orchestration | Dockerfile + docker-compose + CI/CD pipeline ready |
 | No Prometheus metrics or health endpoints | /health + /metrics on webhook, schedule, orchestrator |
@@ -279,77 +274,36 @@ running the full pipeline.
 
 ---
 
-## Phase 7: Advanced Canvas Interactions (Weeks 13-14)
+## Phase 7: Advanced Canvas Interactions (Weeks 13-14) ✅ (Complete)
 
-The UI editor is functional but still has rough edges for real workflow design.
-This phase tightens the canvas experience with multi-object operations, smarter
-wiring, live port discovery, annotation, and native YAML support.
+**All 5 sub-items implemented in `ui/`:**
 
-### 7.1 Multi-select & Group Operations
+### 7.1 Multi-select & Group Operations ✅
+- Rubber-band selection: drag on empty canvas to select nodes in rectangle
+- Shift-click to add/remove nodes from multi-selection
+- Group move, delete, duplicate (Ctrl+D)
 
-**Problem:** Users can only select a single node at a time. Moving, deleting, or
-copying multiple nodes requires repeated single actions.
+### 7.2 Wire Reconnection ✅
+- Grab endpoint circles on selected wire and drag to a different port
+- Releasing on a valid port rewires; releasing on empty space removes wire
+- Bezier curve follows cursor during reconnection
 
-**Target:**
-- Rubber-band selection: drag on empty canvas space to select nodes in rectangle
-- Shift-click to add/remove nodes from selection
-- Group move, delete, copy (Ctrl+D or Ctrl+C/V)
+### 7.3 Live Node Port Discovery ✅
+- Fetches `/api/skills` on mount for node manifests with real input/output schemas
+- Displays actual port names (e.g. `path`, `delimiter` for CSV) from manifest
+- Unconnected ports shown dimmed; PropertyPanel shows manifest port info
 
-**Effort:** 2-3 days.
+### 7.4 Sticky Notes / Canvas Annotations ✅
+- `NoteBlock` component with editable text, 6 color choices, resize
+- Draggable, selectable, persists in flow YAML/JSON as `notes` array
+- PropertyPanel shows note properties when selected
 
-### 7.2 Wire Reconnection
+### 7.5 Native YAML Import/Export ✅
+- `js-yaml` dependency added
+- Export dropdown offers YAML and JSON; file open auto-detects format
+- Positions and notes preserved in roundtrip
 
-**Problem:** Once a wire is created, the only way to change it is to delete and
-recreate it. Users want to drag an existing wire end to a different port.
-
-**Target:**
-- Grab an endpoint of an existing wire (source or target) and drag to a new port
-- Releasing on a valid port rewires the connection; releasing on empty space
-  removes the wire
-- Bezier curve follows the mouse during reconnection, same as new wire drag
-
-**Effort:** 1-2 days.
-
-### 7.3 Live Node Port Discovery
-
-**Problem:** Port dots and labels on nodes are hardcoded (`inputs` from YAML,
-`output` as generic). The editor doesn't know the actual ports each node
-exposes.
-
-**Target:**
-- Fetch node manifest from skills registry (`/api/skills` → `NodeManifest`
-  with `inputs` / `outputs` schemas)
-- On drop or selection, look up the node's real port definitions
-- Display actual input/output port names (e.g. `path`, `delimiter` for CSV)
-- Validate wire connections against port types
-
-**Effort:** 3-4 days.
-
-### 7.4 Sticky Notes / Canvas Annotations
-
-**Problem:** No way to document what a flow does directly on the canvas.
-Users must leave the editor to document flows.
-
-**Target:**
-- Add sticky note nodes (not part of execution) with editable text
-- Resize, reposition, colour notes
-- Notes persist in flow JSON/YAML as `notes: [{ id, text, position, size, color }]`
-
-**Effort:** 1-2 days.
-
-### 7.5 Native YAML Import/Export
-
-**Problem:** The UI exports and imports flow JSON only, but the native flow
-format is YAML. Users can't roundtrip a `.yaml` file through the editor.
-
-**Target:**
-- Add `js-yaml` dependency
-- Export as `.yaml` (preserving comments via custom serialiser or manual
-  field ordering)
-- Import `.yaml` files and convert to internal node/wire model
-- Option: integrate with `/api/validate` after import
-
-**Effort:** 1-2 days.
+**Effort:** 9-13 days. ✅
 
 ---
 
