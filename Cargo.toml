@@ -18,6 +18,11 @@ members = [
     "crates/na-excel",
     "crates/na-google-sheets",
     "crates/na-llm",
+    "crates/na-xml",
+    "crates/na-yaml",
+    "crates/na-parquet",
+    "crates/na-fixedwidth",
+    "crates/na-html",
 ]
 
 [workspace.package]

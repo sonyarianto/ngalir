@@ -20,8 +20,8 @@ workflows, and scheduled batch jobs.
 - ✅ 146 unit + integration tests across all crates
 - ✅ `ngalir generate` — AI flow generation from natural language prompts
 - ✅ `ngalir optimize` — AI flow optimization with cost estimation and retry suggestions
-- ✅ 15 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm
-- ✅ Data Processing phase: CSV, Excel, and Google Sheets nodes complete
+- ✅ 20 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm, xml, yaml, parquet, fixedwidth, html
+- ✅ Data Processing phases: CSV, Excel, Google Sheets, XML, YAML, Parquet, Fixed-Width, and HTML nodes complete
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
@@ -34,12 +34,8 @@ workflows, and scheduled batch jobs.
 **What could be improved:**
 
 | Gap | Why It Matters |
-| `na-jsonpath` was dot-path only, now jq-compatible | Upgraded with `.[]`, slices, pipes, object reconstruction |
-| No Docker images or container orchestration | Dockerfile + docker-compose + CI/CD pipeline ready |
 | No Prometheus metrics or health endpoints | /health + /metrics on webhook, schedule, orchestrator |
-| Large payloads held in memory | output_mode: file transports via temp files |
 | No release automation | Manual build & publish |
-| No Web UI or AI workflow generation | Steep learning curve for non-devs |
 
 ---
 
@@ -307,6 +303,44 @@ running the full pipeline.
 
 ---
 
+## Phase 8: Additional Data Nodes (Week 15) ✅ (Complete)
+
+**5 new data format node crates implemented in `crates/`:**
+
+### 8.1 `na-xml` — XML Parser/Generator ✅
+- Parse XML to JSON using `quick-xml` v0.36
+- Generate XML from JSON with configurable root element name
+- Handles attributes (`@attr`), text content (`#text`), nested elements, arrays of same-named siblings
+- Self-closing empty elements, escaped text content
+- 6 unit tests covering: parse, generate, escaped content, manifest, describe, invalid action
+
+### 8.2 `na-yaml` — YAML Parser/Generator ✅
+- Parse YAML to JSON using `serde_yaml` v0.9
+- Generate YAML from JSON
+- File read/write and stdin/stdout support
+- 8 unit tests covering: read from string, read from file, write to stdout, write to file, manifest, describe, invalid action, missing input
+
+### 8.3 `na-parquet` — Apache Parquet Reader ✅
+- Read Parquet files to JSON rows using Apache Arrow `parquet` v54
+- Column name override support
+- 5 unit tests covering: manifest, describe, field-to-JSON conversion for all primitive types, error handling for nonexistent files
+
+### 8.4 `na-fixedwidth` — Fixed-Width Text Parser ✅
+- Parse fixed-width text files with column definitions (start, width)
+- Generate fixed-width text from JSON rows with automatic padding
+- Optional `has_headers` support for reading
+- 8 unit tests covering: read, write, read with headers, extract field, pad field, manifest, describe, invalid action
+
+### 8.5 `na-html` — HTML Table Extractor ✅
+- CSS selector-based extraction using `scraper` v0.22
+- HTML table parsing to JSON rows
+- Read from inline HTML string or file path
+- 8 unit tests covering: CSS selector extraction, HTML table parsing, manifest, describe, invalid action, missing input, nonexistent file, escaped output
+
+**Effort:** 4-6 days. ✅
+
+---
+
 ## Phase 5: Data Processing (Weeks 6-8) ✅ (Complete)
 
 Ngalir handles JSON between nodes but can't process the three most common
@@ -358,20 +392,6 @@ transform → upload to database" or "sync Google Sheet → Excel report daily."
 ```
 
 **Effort:** 3-4 days.
-
----
-
-## Later: Other Data Nodes (Candidate)
-
-Once the three core formats are done, consider:
-
-| Node | Description | Effort |
-|------|-------------|--------|
-| `na-xml` | Parse/generate XML (enterprise SOAP/EDI) | 2-3d |
-| `na-yaml` | Parse/generate YAML (config files) | 1d |
-| `na-parquet` | Apache Parquet read/write (analytics) | 3-4d |
-| `na-fixedwidth` | Fixed-width text (legacy mainframe) | 1-2d |
-| `na-html` | HTML table extraction (web scraping) | 1-2d |
 
 ---
 
@@ -506,7 +526,7 @@ nodes:
       body: notify.text
 ```
 
-### After Phase 5 (Data Processing) 🔄
+### After Phase 5 + Phase 8 (Data Processing) ✅
 
 **5.1 ✅ CSV — done.**
 **5.2 ✅ Excel — done.**

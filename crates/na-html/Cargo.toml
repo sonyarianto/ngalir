@@ -1,0 +1,16 @@
+[package]
+name = "na-html"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: extract data from HTML documents using CSS selectors."
+
+[[bin]]
+name = "na-html"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+scraper = "0.22"
+anyhow = "1"

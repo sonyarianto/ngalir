@@ -1,0 +1,15 @@
+[package]
+name = "na-fixedwidth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: read and write fixed-width text files."
+
+[[bin]]
+name = "na-fixedwidth"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+anyhow = "1"

@@ -1,0 +1,16 @@
+[package]
+name = "na-yaml"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: parse and generate YAML documents."
+
+[[bin]]
+name = "na-yaml"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+serde_yaml = "0.9"
+anyhow = "1"

@@ -1,0 +1,16 @@
+[package]
+name = "na-parquet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: read and write Apache Parquet files."
+
+[[bin]]
+name = "na-parquet"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+parquet = "54"
+anyhow = "1"

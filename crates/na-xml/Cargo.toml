@@ -1,0 +1,16 @@
+[package]
+name = "na-xml"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: parse and generate XML documents."
+
+[[bin]]
+name = "na-xml"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+quick-xml = "0.36"
+anyhow = "1"
