@@ -491,11 +491,23 @@ mod tests {
     {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test-vault.json");
+        let prev_file = std::env::var("NGALIR_VAULT_FILE").ok();
+        let prev_key = std::env::var("NGALIR_VAULT_KEY").ok();
         unsafe {
             std::env::set_var("NGALIR_VAULT_FILE", path.to_str().unwrap());
             std::env::remove_var("NGALIR_VAULT_KEY");
         }
         f(path);
+        unsafe {
+            match prev_file {
+                Some(v) => std::env::set_var("NGALIR_VAULT_FILE", v),
+                None => std::env::remove_var("NGALIR_VAULT_FILE"),
+            }
+            match prev_key {
+                Some(v) => std::env::set_var("NGALIR_VAULT_KEY", v),
+                None => std::env::remove_var("NGALIR_VAULT_KEY"),
+            }
+        }
         drop(dir);
     }
 
@@ -715,6 +727,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_encryption_key_from_env() {
         unsafe {
             std::env::remove_var("NGALIR_VAULT_KEY");
