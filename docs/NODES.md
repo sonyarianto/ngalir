@@ -29,6 +29,11 @@ or `ngalir skills` to get the full machine-readable registry (JSON).
 | `na-csv` | Streaming CSV processor (read / write) |
 | `na-excel` | Excel (.xlsx) processor (read / write, sheet & range selection) |
 | `na-google-sheets` | Google Sheets processor (read / append, OAuth2) |
+| `na-xml` | XML parser / generator (attributes, nested elements, arrays) |
+| `na-yaml` | YAML parser / generator (read from string/file, write to stdout/file) |
+| `na-parquet` | Apache Parquet reader (column name override, all primitive types) |
+| `na-fixedwidth` | Fixed-width text parser / generator (column definitions with start/width, optional headers) |
+| `na-html` | HTML table extractor & CSS selector scraper (extract text/attributes, parse tables to NDJSON) |
 
 ## AI
 
