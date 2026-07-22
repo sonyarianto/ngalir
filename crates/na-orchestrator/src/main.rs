@@ -8,8 +8,11 @@
 use anyhow::{bail, Context, Result};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use na_contract::{Manifest, OAuthConfig};
+
+mod init_node;
 use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
 use rhai::{Engine, Scope};
 use serde::{Deserialize, Serialize};
@@ -139,6 +142,13 @@ enum Commands {
         #[arg(long)]
         output: Option<String>,
     },
+    /// Generate a new node crate scaffold from interactive prompts
+    InitNode,
+    /// Generate shell completions
+    Completion {
+        /// Shell type (bash, zsh, fish, powershell, elvish)
+        shell: Shell,
+    },
 }
 
 #[tokio::main]
@@ -186,6 +196,11 @@ async fn main() -> Result<()> {
             model,
             output,
         } => cmd_optimize(&flow, model, output).await,
+        Commands::InitNode => Ok(init_node::cmd_init_node()?),
+        Commands::Completion { shell } => {
+            generate(shell, &mut Cli::command(), "ngalir", &mut std::io::stdout());
+            Ok(())
+        }
     }
 }
 

@@ -25,6 +25,14 @@ members = [
     "crates/na-html",
     "crates/na-json",
     "crates/na-zip",
+    "crates/na-slack",
+    "crates/na-telegram",
+    "crates/na-discord",
+    "crates/na-notion",
+    "crates/na-stripe",
+    "crates/na-s3",
+    "crates/na-airtable",
+    "crates/na-twilio",
 ]
 
 [workspace.package]

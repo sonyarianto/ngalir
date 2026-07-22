@@ -42,8 +42,9 @@ Commands:
   nodes      List all na-* on PATH             ngalir nodes
   validate   Validate without running          ngalir validate flow.yaml
   generate   Generate a flow from a prompt     ngalir generate "fetch API → email result"
-  generate   Generate a flow from a prompt   ngalir generate "fetch API → email result"
   skills     List node skills registry (JSON)  ngalir skills | jq .
+  init-node  Scaffold a new node crate         ngalir init-node
+  completion Generate shell completions        ngalir completion bash
   help       Print help
 
 Run flags:
@@ -172,17 +173,24 @@ docker compose up -d webhook schedule
 # webhook:8080, webhook metrics:9091, schedule metrics:9092
 ```
 
-`docker compose up` starts the webhook (port 8080) and schedule daemon with
-persistent volumes and metrics ports exposed.
+`docker compose up` starts the web UI server (port 8080), webhook daemon, and
+schedule daemon with persistent volumes and metrics ports exposed.
 
 ## Building a custom node
 
-1. Implement the Node Contract: `--describe` (manifest), `--version`, and
-   stdin/stdout JSON execution.
-2. Name your binary `na-<name>`.
-3. Put it on `PATH` or `NGALIR_NODE_PATH`.
+```bash
+ngalir init-node
+```
 
-Minimal example: see `crates/na-echo/src/main.rs`.
+The interactive scaffold generates a complete `crates/na-<name>/` crate with:
+
+- `Cargo.toml` with proper dependencies
+- `src/main.rs` implementing the Node Contract (manifest, secrets, credentials,
+  input/output schemas, test skeleton)
+- Auto-registers as a workspace member in `Cargo.toml`
+
+See `docs/node-contract.md` for the binary protocol. Minimal example:
+`crates/na-echo/src/main.rs`.
 
 ## Environment
 

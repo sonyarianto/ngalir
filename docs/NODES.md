@@ -43,6 +43,19 @@ or `ngalir skills` to get the full machine-readable registry (JSON).
 |---|---|
 | `na-llm` | LLM chat completions (OpenAI / Anthropic / compatible) |
 
+## Integrations
+
+| Node | Description |
+|---|---|
+| `na-slack` | Slack messaging (post message, read channel history, OAuth2) |
+| `na-telegram` | Telegram bot (send message, get updates) |
+| `na-discord` | Discord messaging (webhook, bot token, read messages) |
+| `na-notion` | Notion API (query database, create/update pages, append blocks) |
+| `na-stripe` | Stripe API (list/create customers, list/create/retrieve payments) |
+| `na-s3` | S3-compatible object storage (read/write/list/delete, AWS SigV4) |
+| `na-airtable` | Airtable (list/get/create/update/delete records) |
+| `na-twilio` | Twilio SMS / WhatsApp messaging |
+
 ## Triggers / daemons
 
 | Node | Description |
@@ -53,6 +66,6 @@ or `ngalir skills` to get the full machine-readable registry (JSON).
 
 ## Building a custom node
 
-See [Node Contract](node-contract.md) for the binary protocol. Name your
-binary `na-<name>`, implement `--describe` / `--version` / stdin JSON
-execution, and place it on `PATH`.
+Use `ngalir init-node` for an interactive scaffold that generates a complete
+`crates/na-<name>/` crate with Cargo.toml, main.rs, manifest, and test
+skeleton. See [Node Contract](node-contract.md) for the binary protocol.

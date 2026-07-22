@@ -1,12 +1,28 @@
 services:
-  webhook:
+  server:
     image: ngalir/ngalir:latest
     build:
       context: .
       dockerfile: Dockerfile
-    entrypoint: ["na-webhook"]
+    entrypoint: ["ngalir", "serve"]
     ports:
       - "8080:8080"
+    environment:
+      - NGALIR_NODE_PATH=/usr/local/bin
+      - RUST_LOG=info
+      - NGALIR_PUBLIC_URL=http://localhost:8080
+      - NGALIR_HISTORY_FILE=/var/lib/ngalir/history.db
+    volumes:
+      - ngalir-state:/var/lib/ngalir
+      - ngalir-vault:/etc/ngalir/vault
+      - ngalir-flows:/var/lib/ngalir/flows
+    restart: unless-stopped
+
+  webhook:
+    image: ngalir/ngalir:latest
+    entrypoint: ["na-webhook"]
+    ports:
+      - "9090:8080"
       - "9091:9091"
     environment:
       - NGALIR_NODE_PATH=/usr/local/bin
@@ -32,3 +48,4 @@ services:
 volumes:
   ngalir-state:
   ngalir-vault:
+  ngalir-flows:

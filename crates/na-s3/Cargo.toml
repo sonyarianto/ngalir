@@ -1,0 +1,14 @@
+[package]
+name = "na-s3"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "S3-compatible object storage node: read, write, list, delete objects."
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+ring = "0.17"

@@ -593,6 +593,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db8b397918185f0161ff3d6fcaa9e4bfc09b8367caf6e1d4a2848e5477ed027b"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2185,6 +2194,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "na-airtable"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "na-contract"
 version = "0.1.0"
 dependencies = [
@@ -2231,6 +2251,17 @@ dependencies = [
  "na-contract",
  "serde_json",
  "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "na-discord"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -2346,12 +2377,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "na-notion"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "na-orchestrator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "clap_complete",
  "dirs",
  "jsonschema",
  "na-contract",
@@ -2381,6 +2424,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "na-s3"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "ring",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "na-schedule"
 version = "0.1.0"
 dependencies = [
@@ -2395,6 +2450,50 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "na-slack"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "na-stripe"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "na-telegram"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "na-twilio"
+version = "0.1.0"
+dependencies = [
+ "na-contract",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

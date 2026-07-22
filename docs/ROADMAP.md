@@ -651,26 +651,41 @@ SQLite-backed execution persistence and OAuth2 authorization code flow.
 
 ---
 
-## Phase 12: Node Ecosystem & Developer Experience (Planned)
+## Phase 12: Node Ecosystem & Developer Experience ✅
 
 Tools and automation to make Ngalir easy to install, extend, and deploy.
 
-### 12.1 `ngalir init-node` CLI Scaffold
+### 12.1 `ngalir init-node` CLI Scaffold ✅
 - Interactive prompt: name, description, input/output schemas, credential specs
 - Generates complete `na-<name>/` crate with Cargo.toml, main.rs, manifests
-- Registers in workspace `Cargo.toml` members
+- Auto-registers in workspace `Cargo.toml` members
+- Supports sync and async (tokio) runtimes
+- Credential spec generation: API Key, Basic Auth, OAuth2, Custom
 
-### 12.2 Docker Compose Deployment
-- Single `docker compose up` for orchestrator + all node binaries
-- Multi-stage Dockerfile for minimal image size
-- Volume mounts for flows, history, vault
+### 12.2 Integration Node Dogfooding ✅
+- 8 new integration nodes written using scaffold patterns:
+  `na-slack`, `na-telegram`, `na-discord`, `na-notion`, `na-stripe`,
+  `na-s3`, `na-airtable`, `na-twilio`
+- Serves as reference implementations for community contributors
 
-### 12.3 Release Automation
-- GitHub Actions: test, clippy, build, UI build on push/PR
+### 12.3 Release Automation ✅
+- GitHub Actions: lint, test, UI build on push/PR
 - GitHub Releases with pre-built binaries for Linux x86_64, aarch64
-- Docker images pushed to ghcr.io
+- Docker images pushed to Docker Hub + ghcr.io
+- UI artifact bundled with releases
 
-### 12.4 Shell Completions
-- `ngalir completion bash/zsh/fish` subcommand via clap_complete
+### 12.4 Docker Compose Deployment ✅
+- Single `docker compose up` starts web UI server, webhook daemon, schedule daemon
+- Volume mounts for flows, history, vault
+- Multi-stage Dockerfile (247 MB debian-slim)
 
-**Effort estimate:** 5-7 days. 🚧
+### 12.5 Shell Completions ✅
+- `ngalir completion bash/zsh/fish/powershell/elvish` via clap_complete
+
+### 12.6 Documentation ✅
+- `CONTRIBUTING.md` — build, test, init-node, code style, PR workflow
+- `docs/NODES.md` — updated with new integration node table
+- `README.md` — updated CLI reference, init-node section, compose services
+- OAuth provider setup guides (see README credential section)
+
+**Effort:** 5-7 days. ✅
