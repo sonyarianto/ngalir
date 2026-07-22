@@ -7,3 +7,5 @@ pre-commit:
       run: cargo clippy --all-targets -- -D warnings
     test:
       run: cargo test -q
+    nodes-docs:
+      run: scripts/check-nodes-docs.sh
