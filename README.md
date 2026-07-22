@@ -114,19 +114,19 @@ All daemon services expose Prometheus metrics and health endpoints:
 Metrics include flow/node execution counts by status, flow durations, and
 trigger events.
 
-## Secrets (vault)
+## Credentials & Secrets
 
-Write secrets to a JSON file (default `~/.ngalir/vault.json` or
-`NGALIR_VAULT_FILE`):
+Ngalir stores credentials in a structured vault (`~/.ngalir/vault.json` or
+`NGALIR_VAULT_FILE`). Managed via:
 
-```json
-{
-  "api_key": "sk-xxx",
-  "db/prod": "postgresql://user:pass@host/db"
-}
-```
+- **Web UI** — `/credentials` page: list, add, test, delete credentials
+- **CLI** — `na-vault --list/--get/--create/--update/--delete`
+- **REST API** — `GET/POST/PUT/DELETE /api/credentials`
 
-Reference them in flows via `vault://` or `NGALIR_SECRET_*` env vars:
+Each credential is typed by a `CredentialSpec` declared in the node's manifest,
+which drives dynamic UI forms, OAuth buttons, and test-connection flows.
+
+Reference credentials in flows via `vault://<credential_id>`:
 
 ```yaml
 nodes:
@@ -135,6 +135,24 @@ nodes:
     with:
       connection: vault://db/prod
       query: "SELECT * FROM users"
+  - id: sheets
+    use: google-sheets
+    with:
+      credentials: vault://my_sa_key
+      spreadsheet_id: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+```
+
+### Encryption at rest
+
+Set `NGALIR_VAULT_KEY` to a base64-encoded 32-byte key to enable AES-256-GCM
+encryption of the vault file. Without it, the vault is plain JSON (development).
+
+```bash
+# Generate a key
+openssl rand -base64 32
+
+# Use it
+export NGALIR_VAULT_KEY="<base64-key>"
 ```
 
 ## Docker
@@ -172,6 +190,7 @@ Minimal example: see `crates/na-echo/src/main.rs`.
 |---|---|
 | `NGALIR_NODE_PATH` | Colon-separated directories to search for `na-*` binaries |
 | `NGALIR_VAULT_FILE` | Path to vault JSON file (default `~/.ngalir/vault.json`) |
+| `NGALIR_VAULT_KEY` | Base64-encoded 32-byte AES-256-GCM key for vault encryption |
 | `NGALIR_OUTPUT_DIR` | Temp directory for file-mode output (set by orchestrator) |
 | `NGALIR_SECRET_*` | Env vars prefixed with `NGALIR_SECRET_` are injected as secrets |
 

@@ -2,8 +2,9 @@
 
 ## Status Today (Jul 2026)
 
-Ngalir is a **usable MVP** suitable for unattended ETL pipelines, webhook-triggered
-workflows, and scheduled batch jobs.
+Ngalir is a **production-ready low-code platform** suitable for unattended ETL pipelines,
+webhook-triggered workflows, scheduled batch jobs, and credential-aware API integrations
+with an n8n-class web UI.
 
 **What works:**
 
@@ -17,7 +18,7 @@ workflows, and scheduled batch jobs.
 - ✅ Cycle detection with DFS
 - ✅ Retry with exponential backoff
 - ✅ Rhai expression engine for `when:` and `{{ }}` interpolation
-- ✅ 146 unit + integration tests across all crates
+- ✅ 200+ unit + integration tests across all crates
 - ✅ `ngalir generate` — AI flow generation from natural language prompts
 - ✅ `ngalir optimize` — AI flow optimization with cost estimation and retry suggestions
 - ✅ 20 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm, xml, yaml, parquet, fixedwidth, html
@@ -30,12 +31,10 @@ workflows, and scheduled batch jobs.
 - ✅ Web UI: Svelte 5 flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, snapshot comparison
 - ✅ Canvas UX: wire management (click/delete), zoom & pan, auto-layout (dagre), undo/redo (50-step), keyboard shortcuts
 - ✅ Advanced canvas: multi-select & group operations (rubber-band, shift-click, group move/delete/duplicate), wire reconnection (drag endpoints to rewire), live port discovery (node manifests from `/api/skills`), sticky notes (editable text, colors, resize), native YAML import/export
-
-**What could be improved:**
-
-| Gap | Why It Matters |
-| No Prometheus metrics or health endpoints | /health + /metrics on webhook, schedule, orchestrator |
-| No release automation | Manual build & publish |
+- ✅ Structured credential management: `CredentialSpec` in node manifests, typed credentials with dynamic UI forms, `--test-connection` mode
+- ✅ Vault migration: structured credential store with AES-256-GCM at-rest encryption, CRUD via CLI/API/UI
+- ✅ Credential API: REST endpoints for CRUD + test-connection (`/api/credentials`)
+- ✅ Web UI credentials page: list, add, test, delete; credential dropdown in flow editor PropertyPanel
 
 ---
 
@@ -338,6 +337,25 @@ running the full pipeline.
 - 8 unit tests covering: CSS selector extraction, HTML table parsing, manifest, describe, invalid action, missing input, nonexistent file, escaped output
 
 **Effort:** 4-6 days. ✅
+
+---
+
+## Phase 9: Additional Data Nodes — JSON, ZIP (Week 16) ✅ (Complete)
+
+**2 more data format node crates:**
+
+### 9.1 `na-json` — JSON Transformer ✅
+- Read JSON from file or stdin, write to file or stdout
+- Optional pretty-print, optional array extraction from a path
+- 8 unit tests covering: read, write, pretty-print, array extraction, manifest, describe, invalid action, missing input
+
+### 9.2 `na-zip` — ZIP/Gzip Compressor ✅
+- Compress files/directories to ZIP or individual files to Gzip
+- List archive contents
+- Decompress ZIP and Gzip archives
+- 8 unit tests covering: compress/decompress roundtrip for ZIP and Gzip, list contents, manifest, describe, invalid action
+
+**Effort:** 2-3 days. ✅
 
 ---
 
