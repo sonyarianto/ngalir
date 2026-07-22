@@ -51,6 +51,12 @@
 <header class="flex items-center gap-2 px-4 py-2 bg-[#1a1a2e] border-b border-[#333] h-12">
   <span class="font-bold text-lg text-[#7c3aed]">Ngalir</span>
   <span class="text-sm opacity-60">{store.flowName}</span>
+  <button
+    class="px-3 py-1 border border-[#7c3aed] rounded bg-[#3a2a6e] text-sm cursor-pointer hover:bg-[#4a3a7e]"
+    onclick={() => store.navigateTo('credentials')}
+  >
+    Credentials
+  </button>
   <div class="flex-1"></div>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.listFlows()}>Flows</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleLoad}>Open</button>

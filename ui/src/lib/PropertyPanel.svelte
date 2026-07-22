@@ -64,6 +64,46 @@
     if (!n || !n.inputs) return
     ;(n.inputs as Record<string, string>)[key] = val
   }
+
+  let manifest = $derived(node ? store.skillsMap[node.use] : null)
+  let credentialSpecs = $derived(manifest?.credentials ?? [])
+
+  function matchingCredentials(specId: string) {
+    return store.credentials.filter(c => c.credential_spec_id === specId)
+  }
+
+  function selectCredential(specId: string, credentialId: string) {
+    const n = store.nodes.find((n) => n.id === node?.id)
+    if (!n) return
+    if (!n.with) n.with = {}
+    // Find which field this credential spec maps to
+    const spec = credentialSpecs.find(s => s.id === specId)
+    if (spec && spec.fields.length > 0) {
+      // Set the first field to vault:// reference
+      ;(n.with as Record<string, unknown>)[spec.fields[0].key] = `vault://${credentialId}`
+    }
+  }
+
+  function clearCredential(specId: string) {
+    const n = store.nodes.find((n) => n.id === node?.id)
+    if (!n || !n.with) return
+    const spec = credentialSpecs.find(s => s.id === specId)
+    if (spec && spec.fields.length > 0) {
+      delete (n.with as Record<string, unknown>)[spec.fields[0].key]
+    }
+  }
+
+  function getCredentialRef(specId: string): string {
+    if (!node?.with) return ''
+    const spec = credentialSpecs.find(s => s.id === specId)
+    if (!spec || spec.fields.length === 0) return ''
+    const val = (node.with as Record<string, unknown>)[spec.fields[0].key]
+    return typeof val === 'string' ? val : ''
+  }
+
+  function goToCredentials() {
+    store.navigateTo('credentials')
+  }
 </script>
 
 <aside class="w-56 bg-[#16162a] border-l border-[#333] p-2 overflow-y-auto text-xs">
@@ -119,6 +159,45 @@
       {/each}
       <button class="w-full mt-1 px-1 py-0.5 border border-[#333] rounded bg-[#1e1e36] text-[#ccc] text-[11px] cursor-pointer hover:bg-[#2e2e4e]" onclick={addInput}>+ Add input</button>
     </div>
+    {#if credentialSpecs.length > 0}
+      <div class="border-t border-[#333] pt-2 mt-2">
+        <h4 class="text-[10px] text-[#7c3aed] uppercase tracking-wider mb-2">Credentials</h4>
+        {#each credentialSpecs as spec}
+          <div class="mb-2">
+            <label class="block text-[10px] text-[#888] uppercase mb-0.5">{spec.label}</label>
+            <div class="flex gap-1 items-center">
+              <select
+                class="flex-1 min-w-0 px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-[11px] font-mono box-border"
+                onchange={(e) => {
+                  const val = (e.target as HTMLSelectElement).value
+                  if (val === '__add_new__') {
+                    goToCredentials()
+                  } else if (val === '') {
+                    clearCredential(spec.id)
+                  } else {
+                    selectCredential(spec.id, val)
+                  }
+                }}
+              >
+                <option value="">-- Select --</option>
+                {#each matchingCredentials(spec.id) as cred}
+                  <option value={cred.id} selected={getCredentialRef(spec.id) === `vault://${cred.id}`}>
+                    {cred.label}
+                  </option>
+                {/each}
+                <option value="__add_new__" disabled={false}>+ Add new credential</option>
+              </select>
+            </div>
+            {#if getCredentialRef(spec.id)}
+              <div class="text-[10px] text-green-500 mt-0.5">
+                vault://{getCredentialRef(spec.id).replace('vault://', '')}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+
     {#if store.skillsMap[node.use]}
       <div class="border-t border-[#333] pt-2 mt-2">
         <h4 class="text-[10px] text-[#7c3aed] uppercase tracking-wider mb-1">Ports (from manifest)</h4>

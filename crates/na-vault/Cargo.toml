@@ -3,11 +3,17 @@ name = "na-vault"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Ngalir credential storage. Resolves vault:// refs to secret values."
+description = "Ngalir credential storage. Structured credential store with at-rest encryption."
 
 [dependencies]
 na-contract = { path = "../na-contract" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+aes-gcm = "0.10"
+base64 = "0.22"
+rand = "0.8"
+uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
 serial_test = "3"
+tempfile = "3"

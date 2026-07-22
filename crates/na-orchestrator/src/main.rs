@@ -701,6 +701,20 @@ async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
             "/api/snapshots/diff",
             axum::routing::get(api_snapshots_diff),
         )
+        .route(
+            "/api/credentials",
+            axum::routing::get(api_credentials_list).post(api_credentials_create),
+        )
+        .route(
+            "/api/credentials/{id}",
+            axum::routing::get(api_credentials_get)
+                .put(api_credentials_update)
+                .delete(api_credentials_delete),
+        )
+        .route(
+            "/api/credentials/{id}/test",
+            axum::routing::post(api_credentials_test),
+        )
         .route("/ws", axum::routing::get(ws_handler))
         .with_state(state);
 
@@ -2151,6 +2165,287 @@ async fn call_vault_resolve(ref_str: &str) -> Result<String> {
         .as_str()
         .context("na-vault response missing 'secret' field")?
         .to_string())
+}
+
+// ── Credential CRUD helpers ───────────────────────────────────────────────
+
+async fn call_vault(mode: &str, id: Option<&str>, stdin_data: Option<Value>) -> Result<Value> {
+    let mut cmd = Command::new("na-vault");
+    cmd.arg(mode)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    if let Some(arg) = id {
+        cmd.arg(arg);
+    }
+
+    let mut child = cmd.spawn().context("spawn na-vault (is it on PATH?)")?;
+
+    if let Some(data) = stdin_data {
+        let mut stdin = child.stdin.take().context("na-vault stdin")?;
+        let bytes = serde_json::to_vec(&data)?;
+        stdin.write_all(&bytes).await?;
+        stdin.shutdown().await?;
+    } else {
+        drop(child.stdin.take());
+    }
+
+    let out = child.wait_with_output().await?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let msg = if stderr.is_empty() {
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        } else {
+            stderr
+        };
+        bail!("na-vault {} failed: {}", mode, msg);
+    }
+
+    let result: Value = serde_json::from_slice(&out.stdout)
+        .with_context(|| format!("parse na-vault {} output", mode))?;
+    Ok(result)
+}
+
+async fn call_vault_list() -> Result<Vec<Value>> {
+    let result = call_vault("--list", None, None).await?;
+    serde_json::from_value(result).context("na-vault list: expected array")
+}
+
+async fn call_vault_get(id: &str) -> Result<Value> {
+    call_vault("--get", Some(id), None).await
+}
+
+async fn call_vault_create(data: Value) -> Result<Value> {
+    call_vault("--create", None, Some(data)).await
+}
+
+async fn call_vault_update(id: &str, data: Value) -> Result<Value> {
+    call_vault("--update", Some(id), Some(data)).await
+}
+
+async fn call_vault_delete(id: &str) -> Result<Value> {
+    call_vault("--delete", Some(id), None).await
+}
+
+// ── Credential API endpoints ──────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct CredentialListResponse {
+    credentials: Vec<Value>,
+}
+
+async fn api_credentials_list() -> Result<axum::Json<CredentialListResponse>, axum::http::StatusCode>
+{
+    match call_vault_list().await {
+        Ok(list) => Ok(axum::Json(CredentialListResponse { credentials: list })),
+        Err(e) => {
+            error!("credential list failed: {e}");
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn api_credentials_get(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<axum::Json<Value>, axum::http::StatusCode> {
+    match call_vault_get(&id).await {
+        Ok(cred) => Ok(axum::Json(cred)),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("not found") {
+                Err(axum::http::StatusCode::NOT_FOUND)
+            } else {
+                error!("credential get failed: {e}");
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct CreateCredentialRequest {
+    credential_spec_id: String,
+    label: String,
+    #[serde(default)]
+    auth_type: String,
+    #[serde(default)]
+    data: serde_json::Map<String, Value>,
+}
+
+async fn api_credentials_create(
+    axum::Json(req): axum::Json<CreateCredentialRequest>,
+) -> Result<(axum::http::StatusCode, axum::Json<Value>), axum::http::StatusCode> {
+    let data = serde_json::json!({
+        "credential_spec_id": req.credential_spec_id,
+        "label": req.label,
+        "auth_type": req.auth_type,
+        "data": req.data,
+    });
+
+    match call_vault_create(data).await {
+        Ok(cred) => Ok((axum::http::StatusCode::CREATED, axum::Json(cred))),
+        Err(e) => {
+            error!("credential create failed: {e}");
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct UpdateCredentialRequest {
+    #[serde(default)]
+    label: Option<String>,
+    #[serde(default)]
+    auth_type: Option<String>,
+    #[serde(default)]
+    data: Option<serde_json::Map<String, Value>>,
+}
+
+async fn api_credentials_update(
+    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::Json(req): axum::Json<UpdateCredentialRequest>,
+) -> Result<axum::Json<Value>, axum::http::StatusCode> {
+    let mut data = serde_json::Map::new();
+    if let Some(label) = req.label {
+        data.insert("label".into(), Value::String(label));
+    }
+    if let Some(auth_type) = req.auth_type {
+        data.insert("auth_type".into(), Value::String(auth_type));
+    }
+    if let Some(d) = req.data {
+        data.insert("data".into(), Value::Object(d));
+    }
+
+    match call_vault_update(&id, Value::Object(data)).await {
+        Ok(cred) => Ok(axum::Json(cred)),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("not found") {
+                Err(axum::http::StatusCode::NOT_FOUND)
+            } else {
+                error!("credential update failed: {e}");
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
+async fn api_credentials_delete(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<axum::Json<Value>, axum::http::StatusCode> {
+    match call_vault_delete(&id).await {
+        Ok(result) => Ok(axum::Json(result)),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("not found") {
+                Err(axum::http::StatusCode::NOT_FOUND)
+            } else {
+                error!("credential delete failed: {e}");
+                Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    }
+}
+
+async fn api_credentials_test(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<axum::Json<Value>, axum::http::StatusCode> {
+    let cred = match call_vault_get(&id).await {
+        Ok(c) => c,
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("not found") {
+                return Err(axum::http::StatusCode::NOT_FOUND);
+            }
+            error!("credential get for test failed: {e}");
+            return Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let credential_spec_id = cred["credential_spec_id"].as_str().unwrap_or("");
+
+    // Find a node binary that matches this credential_spec_id
+    let binaries = scan_binaries();
+    let mut test_bin: Option<String> = None;
+    for name in &binaries {
+        if let Ok(bin) = describe_binary(name).await {
+            let specs = bin.manifest.credential_specs();
+            if specs.iter().any(|s| s.id == credential_spec_id) {
+                test_bin = Some(bin.binary.clone());
+                break;
+            }
+        }
+    }
+
+    let binary = match test_bin {
+        Some(b) => b,
+        None => {
+            return Ok(axum::Json(serde_json::json!({
+                "ok": false,
+                "message": format!("no node found for credential spec '{credential_spec_id}'")
+            })));
+        }
+    };
+
+    // Extract credential data fields and pass to node's --test-connection
+    let data = cred
+        .get("data")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let test_input = Value::Object(data);
+
+    let mut cmd = tokio::process::Command::new(&binary);
+    cmd.arg("--test-connection")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            return Ok(axum::Json(serde_json::json!({
+                "ok": false,
+                "message": format!("cannot spawn {binary}: {e}")
+            })));
+        }
+    };
+
+    {
+        let mut stdin = match child.stdin.take() {
+            Some(s) => s,
+            None => {
+                return Ok(axum::Json(serde_json::json!({
+                    "ok": false,
+                    "message": "failed to open stdin for test connection"
+                })));
+            }
+        };
+        let _ = stdin
+            .write_all(&serde_json::to_vec(&test_input).unwrap_or_default())
+            .await;
+        let _ = stdin.shutdown().await;
+    }
+
+    let out = match child.wait_with_output().await {
+        Ok(o) => o,
+        Err(e) => {
+            return Ok(axum::Json(serde_json::json!({
+                "ok": false,
+                "message": format!("test connection failed: {e}")
+            })));
+        }
+    };
+
+    match serde_json::from_slice::<Value>(&out.stdout) {
+        Ok(result) => Ok(axum::Json(result)),
+        Err(_) => Ok(axum::Json(serde_json::json!({
+            "ok": out.status.success(),
+            "message": String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        }))),
+    }
 }
 
 // ── JSON Schema validation ─────────────────────────────────────────────────

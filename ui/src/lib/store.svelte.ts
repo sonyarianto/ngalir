@@ -1,6 +1,6 @@
 import dagre from 'dagre'
 import * as yaml from 'js-yaml'
-import { type CanvasNode, type CanvasNote, type NodeManifest, type Wire } from './types'
+import { type CanvasNode, type CanvasNote, type Credential, type NodeManifest, type Wire } from './types'
 
 let nodes = $state<CanvasNode[]>([])
 let wires = $state<Wire[]>([])
@@ -24,6 +24,9 @@ let panX = $state(0)
 let panY = $state(0)
 let zoom = $state(1)
 let skillsMap = $state<Record<string, NodeManifest>>({})
+let currentPage = $state<'editor' | 'credentials'>('editor')
+let credentials = $state<Credential[]>([])
+let credentialSpecs = $state<{ id: string; label: string; auth_type: string; manifest: NodeManifest }[]>([])
 
 type Snapshot = { nodes: CanvasNode[]; wires: Wire[]; notes: CanvasNote[] }
 let undoStack = $state<Snapshot[]>([])
@@ -625,9 +628,72 @@ async function fetchSkills() {
     if (!res.ok) return
     const data: NodeManifest[] = await res.json()
     const map: Record<string, NodeManifest> = {}
-    for (const entry of data) map[entry.name] = entry
+    const specs: { id: string; label: string; auth_type: string; manifest: NodeManifest }[] = []
+    for (const entry of data) {
+      map[entry.name] = entry
+      const cs = entry.credentials || []
+      for (const c of cs) {
+        specs.push({ id: c.id, label: c.label, auth_type: c.auth_type, manifest: entry })
+      }
+    }
     skillsMap = map
+    credentialSpecs = specs
   } catch { /* ignore */ }
+}
+
+function navigateTo(page: 'editor' | 'credentials') {
+  currentPage = page
+}
+
+async function fetchCredentials() {
+  try {
+    const res = await fetch('/api/credentials')
+    if (!res.ok) return
+    const data = await res.json()
+    credentials = data.credentials || []
+  } catch { /* ignore */ }
+}
+
+async function createCredential(data: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch('/api/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (res.ok) {
+      await fetchCredentials()
+      return true
+    }
+  } catch { /* ignore */ }
+  return false
+}
+
+async function deleteCredential(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/credentials/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    if (res.ok) {
+      await fetchCredentials()
+      return true
+    }
+  } catch { /* ignore */ }
+  return false
+}
+
+async function testCredential(id: string): Promise<{ ok: boolean; message: string } | null> {
+  try {
+    const res = await fetch(`/api/credentials/${encodeURIComponent(id)}/test`, { method: 'POST' })
+    if (!res.ok) return null
+    return await res.json()
+  } catch { return null }
+}
+
+async function getCredential(id: string): Promise<Credential | null> {
+  try {
+    const res = await fetch(`/api/credentials/${encodeURIComponent(id)}`)
+    if (!res.ok) return null
+    return await res.json()
+  } catch { return null }
 }
 
 export function getStore() {
@@ -652,6 +718,9 @@ export function getStore() {
     get panY() { return panY },
     get zoom() { return zoom },
     get skillsMap() { return skillsMap },
+    get currentPage() { return currentPage },
+    get credentials() { return credentials },
+    get credentialSpecs() { return credentialSpecs },
     set flowName(v: string) { flowName = v },
     set filename(v: string) { filename = v },
     set showFlowList(v: boolean) { showFlowList = v },
@@ -700,5 +769,11 @@ export function getStore() {
     deleteFlow,
     listFlows,
     fetchSkills,
+    fetchCredentials,
+    createCredential,
+    deleteCredential,
+    testCredential,
+    getCredential,
+    navigateTo,
   }
 }

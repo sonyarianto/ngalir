@@ -32,6 +32,7 @@ fn manifest() -> Manifest {
             }
         }),
         secrets: vec!["api_key".into()],
+        credentials: vec![],
         streaming: true,
         idempotent: true,
         output_mode: None,

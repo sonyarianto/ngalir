@@ -30,6 +30,7 @@ fn manifest() -> Manifest {
             }
         }),
         secrets: vec![],
+        credentials: vec![],
         streaming: false,
         idempotent: true,
         output_mode: None,

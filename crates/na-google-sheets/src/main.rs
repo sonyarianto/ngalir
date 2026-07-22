@@ -1,4 +1,7 @@
-use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
+use na_contract::{
+    exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
+    Manifest,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -29,6 +32,18 @@ fn manifest() -> Manifest {
             }
         }),
         secrets: vec!["credentials".into()],
+        credentials: vec![CredentialSpec {
+            id: "google_service_account".into(),
+            label: "Google Service Account".into(),
+            auth_type: AuthType::Custom,
+            fields: vec![CredentialField {
+                key: "credentials".into(),
+                label: "Service Account JSON".into(),
+                input_type: "textarea".into(),
+                required: true,
+            }],
+            oauth: None,
+        }],
         streaming: true,
         idempotent: true,
         output_mode: None,
@@ -101,6 +116,35 @@ fn main() {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
     }
+    if args.iter().any(|a| a == "--test-connection") {
+        let input = read_input();
+        let credentials = match input.get("credentials").and_then(Value::as_str) {
+            Some(c) => {
+                if c.trim().starts_with('{') {
+                    c.to_string()
+                } else {
+                    std::fs::read_to_string(c).unwrap_or_else(|_| {
+                        println!(
+                            "{}",
+                            serde_json::json!({"ok": false, "message": format!("cannot read credentials file: {c}")})
+                        );
+                        std::process::exit(0);
+                    })
+                }
+            }
+            None => {
+                println!(
+                    "{}",
+                    serde_json::json!({"ok": false, "message": "missing 'credentials' field"})
+                );
+                std::process::exit(0);
+            }
+        };
+        let rt = tokio::runtime::Runtime::new()
+            .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("runtime init failed: {e}")));
+        rt.block_on(test_connection(&credentials));
+        return;
+    }
 
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -133,6 +177,26 @@ fn main() {
             ),
         }
     });
+}
+
+async fn test_connection(credentials_json: &str) {
+    let result = get_access_token(credentials_json).await;
+    match result {
+        Ok(_token) => {
+            let out = serde_json::json!({
+                "ok": true,
+                "message": "Service account credentials are valid — access token obtained successfully."
+            });
+            println!("{out}");
+        }
+        Err(e) => {
+            let out = serde_json::json!({
+                "ok": false,
+                "message": format!("Credential validation failed: {e}")
+            });
+            println!("{out}");
+        }
+    }
 }
 
 fn resolve_credentials(input: &Value) -> String {
@@ -413,6 +477,11 @@ mod tests {
         assert!(m.idempotent);
         assert!(m.inputs.get("required").is_some());
         assert!(m.secrets.contains(&"credentials".to_string()));
+        assert_eq!(m.credentials.len(), 1);
+        assert_eq!(m.credentials[0].id, "google_service_account");
+        assert_eq!(m.credentials[0].auth_type, AuthType::Custom);
+        assert_eq!(m.credentials[0].fields.len(), 1);
+        assert_eq!(m.credentials[0].fields[0].key, "credentials");
     }
 
     #[test]
@@ -519,6 +588,58 @@ mod tests {
         }
         let output = child.wait_with_output().expect("wait");
         assert!(!output.status.success());
+    }
+
+    #[test]
+    fn test_test_connection_missing_credentials() {
+        let input = serde_json::json!({});
+        let mut child = Command::new(bin_path())
+            .arg("--test-connection")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn");
+        {
+            use std::io::Write;
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(input.to_string().as_bytes())
+                .unwrap();
+        }
+        let result = child.wait_with_output().expect("wait");
+        assert!(result.status.success());
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        let parsed: Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(parsed["ok"], false);
+    }
+
+    #[test]
+    fn test_test_connection_invalid_json() {
+        let input = serde_json::json!({"credentials": "{invalid"});
+        let mut child = Command::new(bin_path())
+            .arg("--test-connection")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn");
+        {
+            use std::io::Write;
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(input.to_string().as_bytes())
+                .unwrap();
+        }
+        let result = child.wait_with_output().expect("wait");
+        assert!(result.status.success());
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        let parsed: Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(parsed["ok"], false);
     }
 
     #[test]

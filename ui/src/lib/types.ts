@@ -64,11 +64,44 @@ export interface NodeManifest {
   inputs: Record<string, unknown>
   outputs: Record<string, unknown>
   secrets: string[]
+  credentials: CredentialSpec[]
   streaming: boolean
   idempotent: boolean
   output_mode: string | null
   use_cases: string[]
   see_also: string[]
+}
+
+export interface CredentialSpec {
+  id: string
+  label: string
+  auth_type: 'api_key' | 'basic_auth' | 'oauth2' | 'custom'
+  fields: CredentialField[]
+  oauth?: OAuthConfig
+}
+
+export interface CredentialField {
+  key: string
+  label: string
+  input_type: string
+  required: boolean
+}
+
+export interface OAuthConfig {
+  authorize_url: string
+  token_url: string
+  scopes: string[]
+  client_id_env: string
+}
+
+export interface Credential {
+  id: string
+  credential_spec_id: string
+  label: string
+  auth_type: string
+  data: Record<string, string>
+  created_at: string
+  updated_at: string
 }
 
 export const CATEGORIES = [

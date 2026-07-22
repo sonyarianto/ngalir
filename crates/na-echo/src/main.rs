@@ -20,6 +20,7 @@ fn manifest() -> Manifest {
             "properties": { "echo": { "type": "string" } }
         }),
         secrets: vec![],
+        credentials: vec![],
         streaming: false,
         idempotent: true,
         output_mode: None,

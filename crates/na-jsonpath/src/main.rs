@@ -27,6 +27,7 @@ fn manifest() -> Manifest {
             "properties": { "result": {} }
         }),
         secrets: vec![],
+        credentials: vec![],
         streaming: false,
         idempotent: true,
         output_mode: None,

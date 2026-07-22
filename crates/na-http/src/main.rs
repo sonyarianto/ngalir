@@ -27,6 +27,7 @@ fn manifest() -> Manifest {
             }
         }),
         secrets: vec!["body".into()],
+        credentials: vec![],
         streaming: false,
         idempotent: false,
         output_mode: None,

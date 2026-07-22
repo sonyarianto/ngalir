@@ -23,6 +23,7 @@ fn manifest() -> Manifest {
             }
         }),
         secrets: vec![],
+        credentials: vec![],
         streaming: false,
         idempotent: false,
         output_mode: Some("file".into()),

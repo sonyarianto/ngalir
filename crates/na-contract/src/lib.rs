@@ -10,6 +10,50 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthType {
+    ApiKey,
+    BasicAuth,
+    #[serde(rename = "oauth2")]
+    OAuth2,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CredentialField {
+    pub key: String,
+    pub label: String,
+    #[serde(default = "default_cred_field_input_type")]
+    pub input_type: String,
+    #[serde(default)]
+    pub required: bool,
+}
+
+fn default_cred_field_input_type() -> String {
+    "text".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthConfig {
+    pub authorize_url: String,
+    pub token_url: String,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    pub client_id_env: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CredentialSpec {
+    pub id: String,
+    pub label: String,
+    pub auth_type: AuthType,
+    #[serde(default)]
+    pub fields: Vec<CredentialField>,
+    #[serde(default)]
+    pub oauth: Option<OAuthConfig>,
+}
+
 /// A sample input/output pair for documentation / AI context.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Example {
@@ -30,8 +74,12 @@ pub struct Manifest {
     #[serde(default = "Value::default")]
     pub outputs: Value,
     /// Names of input fields that are credentials (resolved via `na-vault`).
+    /// Legacy field — use `credentials` for richer credential specs.
     #[serde(default)]
     pub secrets: Vec<String>,
+    /// Structured credential specs for UI forms, OAuth, and validation.
+    #[serde(default)]
+    pub credentials: Vec<CredentialSpec>,
     /// If true, stdout is NDJSON (one JSON object per line).
     #[serde(default)]
     pub streaming: bool,
@@ -61,6 +109,7 @@ impl Default for Manifest {
             inputs: Value::Null,
             outputs: Value::Null,
             secrets: Vec::new(),
+            credentials: Vec::new(),
             streaming: false,
             idempotent: false,
             output_mode: None,
@@ -75,6 +124,32 @@ impl Manifest {
     /// Returns true if the node uses file-based output transport.
     pub fn output_is_file(&self) -> bool {
         self.output_mode.as_deref() == Some("file")
+    }
+
+    /// Returns credential specs for this node.
+    ///
+    /// If `credentials` is non-empty, those are returned.
+    /// Otherwise, derives basic `AuthType::ApiKey` specs from the legacy
+    /// `secrets` field for backward compatibility.
+    pub fn credential_specs(&self) -> Vec<CredentialSpec> {
+        if !self.credentials.is_empty() {
+            return self.credentials.clone();
+        }
+        self.secrets
+            .iter()
+            .map(|s| CredentialSpec {
+                id: s.clone(),
+                label: s.clone(),
+                auth_type: AuthType::ApiKey,
+                fields: vec![CredentialField {
+                    key: s.clone(),
+                    label: s.clone(),
+                    input_type: "password".to_string(),
+                    required: true,
+                }],
+                oauth: None,
+            })
+            .collect()
     }
 }
 
@@ -144,6 +219,7 @@ mod tests {
             inputs: json!({"type": "object", "properties": {"x": {"type": "integer"}}}),
             outputs: json!({"type": "string"}),
             secrets: vec!["password".into()],
+            credentials: vec![],
             streaming: true,
             idempotent: false,
             output_mode: Some("stdout".into()),
@@ -217,5 +293,145 @@ mod tests {
         unsafe {
             std::env::remove_var("NGALIR_SECRET_EMPTY");
         }
+    }
+
+    #[test]
+    fn test_auth_type_serialization() {
+        let cases = vec![
+            (AuthType::ApiKey, r#""api_key""#),
+            (AuthType::BasicAuth, r#""basic_auth""#),
+            (AuthType::OAuth2, r#""oauth2""#),
+            (AuthType::Custom, r#""custom""#),
+        ];
+        for (variant, expected) in cases {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert_eq!(json, expected);
+            let back: AuthType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, variant);
+        }
+    }
+
+    #[test]
+    fn test_credential_spec_roundtrip() {
+        let spec = CredentialSpec {
+            id: "slack_api".into(),
+            label: "Slack API".into(),
+            auth_type: AuthType::OAuth2,
+            fields: vec![CredentialField {
+                key: "client_id".into(),
+                label: "Client ID".into(),
+                input_type: "text".into(),
+                required: true,
+            }],
+            oauth: Some(OAuthConfig {
+                authorize_url: "https://slack.com/oauth/authorize".into(),
+                token_url: "https://slack.com/api/oauth.token".into(),
+                scopes: vec!["chat:write".into()],
+                client_id_env: "NGALIR_SLACK_CLIENT_ID".into(),
+            }),
+        };
+        let json = serde_json::to_string_pretty(&spec).unwrap();
+        let back: CredentialSpec = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.id, "slack_api");
+        assert_eq!(back.auth_type, AuthType::OAuth2);
+        assert!(back.oauth.is_some());
+        assert_eq!(back.oauth.as_ref().unwrap().scopes, vec!["chat:write"]);
+    }
+
+    #[test]
+    fn test_credential_spec_default_input_type() {
+        let json = r#"{"key":"api_key","label":"API Key","required":true}"#;
+        let field: CredentialField = serde_json::from_str(json).unwrap();
+        assert_eq!(field.input_type, "text");
+    }
+
+    #[test]
+    fn test_manifest_with_credentials() {
+        let m = Manifest {
+            name: "na-slack".into(),
+            version: "0.1.0".into(),
+            description: "Slack node".into(),
+            inputs: json!({}),
+            outputs: json!({}),
+            secrets: vec![],
+            credentials: vec![CredentialSpec {
+                id: "slack_api".into(),
+                label: "Slack API".into(),
+                auth_type: AuthType::OAuth2,
+                fields: vec![],
+                oauth: Some(OAuthConfig {
+                    authorize_url: "https://slack.com/oauth/authorize".into(),
+                    token_url: "https://slack.com/api/oauth.token".into(),
+                    scopes: vec![],
+                    client_id_env: "NGALIR_SLACK_CLIENT_ID".into(),
+                }),
+            }],
+            streaming: false,
+            idempotent: true,
+            output_mode: None,
+            use_cases: vec![],
+            examples: vec![],
+            see_also: vec![],
+        };
+        let json = serde_json::to_string_pretty(&m).unwrap();
+        let m2: Manifest = serde_json::from_str(&json).unwrap();
+        assert_eq!(m2.credentials.len(), 1);
+        assert_eq!(m2.credentials[0].auth_type, AuthType::OAuth2);
+        assert!(m2.credentials[0].oauth.is_some());
+    }
+
+    #[test]
+    fn test_credential_specs_backward_compat_from_secrets() {
+        let m = Manifest {
+            name: "na-db".into(),
+            version: "0.1.0".into(),
+            description: "DB node".into(),
+            inputs: json!({}),
+            outputs: json!({}),
+            secrets: vec!["connection".into(), "password".into()],
+            credentials: vec![],
+            streaming: false,
+            idempotent: true,
+            output_mode: None,
+            use_cases: vec![],
+            examples: vec![],
+            see_also: vec![],
+        };
+        let specs = m.credential_specs();
+        assert_eq!(specs.len(), 2);
+        assert_eq!(specs[0].id, "connection");
+        assert_eq!(specs[0].auth_type, AuthType::ApiKey);
+        assert_eq!(specs[0].fields.len(), 1);
+        assert_eq!(specs[0].fields[0].input_type, "password");
+        assert!(specs[0].oauth.is_none());
+    }
+
+    #[test]
+    fn test_credential_specs_credentials_take_precedence() {
+        let m = Manifest {
+            name: "na-slack".into(),
+            version: "0.1.0".into(),
+            description: "Slack node".into(),
+            inputs: json!({}),
+            outputs: json!({}),
+            secrets: vec!["token".into()],
+            credentials: vec![CredentialSpec {
+                id: "slack_oauth".into(),
+                label: "Slack OAuth".into(),
+                auth_type: AuthType::OAuth2,
+                fields: vec![],
+                oauth: None,
+            }],
+            streaming: false,
+            idempotent: true,
+            output_mode: None,
+            use_cases: vec![],
+            examples: vec![],
+            see_also: vec![],
+        };
+        let specs = m.credential_specs();
+        assert_eq!(specs.len(), 1);
+        assert_eq!(specs[0].id, "slack_oauth");
+        assert_eq!(specs[0].auth_type, AuthType::OAuth2);
     }
 }
