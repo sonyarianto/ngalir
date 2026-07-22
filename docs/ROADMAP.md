@@ -35,6 +35,9 @@ with an n8n-class web UI.
 - ✅ Vault migration: structured credential store with AES-256-GCM at-rest encryption, CRUD via CLI/API/UI
 - ✅ Credential API: REST endpoints for CRUD + test-connection (`/api/credentials`)
 - ✅ Web UI credentials page: list, add, test, delete; credential dropdown in flow editor PropertyPanel
+- ✅ OAuth authorization flow: redirect to provider, code exchange, credential storage, toast notifications
+- ✅ Execution history: SQLite-backed flow/node run records with timing, status, input/output snapshots
+- ✅ History API (`/api/history`, `/api/history/{flow_id}`) and HistoryPage UI with list + detail views
 
 ---
 
@@ -586,3 +589,88 @@ nodes:
       subject: "Inventory Sync Complete"
       body: "{{ download.count }} rows processed."
 ```
+
+---
+
+## Phase 10: Structured Credential Management (Week 18) ✅ (Complete)
+
+Credential UX layer providing type-safe, encrypted, UI-managed credentials
+matching n8n's ergonomics.
+
+### 10.1 `CredentialSpec` in Node Contract ✅
+- `CredentialSpec`, `AuthType`, `CredentialField`, `OAuthConfig` structs
+- `Manifest.credentials` supersedes `secrets` with structured specs
+- Backward-compat `credential_specs()` derives ApiKey specs when `credentials` empty
+
+### 10.2 Structured Vault with Encryption ✅
+- `na-vault` rewritten with `VaultFile { version, credentials }` structure
+- CRUD: `--list`, `--get`, `--create`, `--update`, `--delete`
+- AES-256-GCM encryption via `NGALIR_VAULT_KEY` (base64 32-byte key)
+- Legacy flat JSON auto-migration on first write
+- 16 unit tests
+
+### 10.3 Credential REST API ✅
+- `GET/POST /api/credentials`, `GET/PUT/DELETE /api/credentials/{id}`
+- `POST /api/credentials/{id}/test` spawns `na-* --test-connection`
+- 30 integration tests
+
+### 10.4 Web UI Credentials Page ✅
+- `CredentialsPage.svelte`: list, dynamic add form (dropdown → render fields), test, delete
+- `PropertyPanel.svelte`: credential dropdown for nodes with `CredentialSpec`
+- `Toolbar.svelte`: "Credentials" nav button
+- Page routing via `store.currentPage`
+
+**Effort:** 4-5 days. ✅
+
+---
+
+## Phase 11: Execution History & OAuth Flow (Week 19) ✅ (Complete)
+
+SQLite-backed execution persistence and OAuth2 authorization code flow.
+
+### 11.1 Execution History Database ✅
+- SQLite tables `flow_runs` and `node_runs` at `~/.ngalir/history.db`
+- WAL journal mode for concurrent access
+- Records flow start/end and per-node start/complete/fail/skip with input/output snapshots
+- Duration computed from ISO-8601 timestamps
+
+### 11.2 History API & UI ✅
+- `GET /api/history` — last 100 runs, newest first
+- `GET /api/history/{flow_id}` — run detail with all node execution records
+- `HistoryPage.svelte`: list view (status, duration, timestamp) and detail view (per-node timing, errors)
+- "History" nav button in Toolbar
+
+### 11.3 OAuth Authorization Flow ✅
+- `GET /api/oauth/{spec_id}/authorize` — redirects to provider with state token
+- `GET /api/oauth/callback` — exchanges code for tokens, stores credential in vault
+- `client_secret_env` in `OAuthConfig` (defaults derived from `client_id_env`)
+- `NGALIR_PUBLIC_URL` env var for redirect URI
+- Toast notification UI for OAuth success/error
+
+**Effort:** 4-5 days. ✅
+
+---
+
+## Phase 12: Node Ecosystem & Developer Experience (Planned)
+
+Tools and automation to make Ngalir easy to install, extend, and deploy.
+
+### 12.1 `ngalir init-node` CLI Scaffold
+- Interactive prompt: name, description, input/output schemas, credential specs
+- Generates complete `na-<name>/` crate with Cargo.toml, main.rs, manifests
+- Registers in workspace `Cargo.toml` members
+
+### 12.2 Docker Compose Deployment
+- Single `docker compose up` for orchestrator + all node binaries
+- Multi-stage Dockerfile for minimal image size
+- Volume mounts for flows, history, vault
+
+### 12.3 Release Automation
+- GitHub Actions: test, clippy, build, UI build on push/PR
+- GitHub Releases with pre-built binaries for Linux x86_64, aarch64
+- Docker images pushed to ghcr.io
+
+### 12.4 Shell Completions
+- `ngalir completion bash/zsh/fish` subcommand via clap_complete
+
+**Effort estimate:** 5-7 days. 🚧
