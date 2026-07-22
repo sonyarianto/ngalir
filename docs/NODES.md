@@ -34,6 +34,8 @@ or `ngalir skills` to get the full machine-readable registry (JSON).
 | `na-parquet` | Apache Parquet reader (column name override, all primitive types) |
 | `na-fixedwidth` | Fixed-width text parser / generator (column definitions with start/width, optional headers) |
 | `na-html` | HTML table extractor & CSS selector scraper (extract text/attributes, parse tables to NDJSON) |
+| `na-json` | JSON transform: read, write (pretty), pick (select fields), omit (remove fields), merge (deep merge objects) |
+| `na-zip` | Archive compressor / decompressor: zip (multi-file) and gzip (single file), list archive contents |
 
 ## AI
 

@@ -1,0 +1,15 @@
+[package]
+name = "na-json"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ngalir node: JSON transform (read/write/pick/omit/merge)."
+
+[[bin]]
+name = "na-json"
+path = "src/main.rs"
+
+[dependencies]
+na-contract = { path = "../na-contract" }
+serde_json = "1"
+anyhow = "1"
