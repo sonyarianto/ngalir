@@ -9,7 +9,7 @@ use anyhow::{bail, Context, Result};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use clap::{Parser, Subcommand};
-use na_contract::Manifest;
+use na_contract::{Manifest, OAuthConfig};
 use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
 use rhai::{Engine, Scope};
 use serde::{Deserialize, Serialize};
@@ -314,7 +314,19 @@ async fn cmd_run(path: &str, state_dir: Option<String>, input_json: Option<Strin
         })
         .unwrap_or_default();
 
-    let outputs = execute_flow(&flow, &node_bins, &mut store, initial_outputs, None, None).await?;
+    let history = HistoryDb::new(history_db_path()).ok().map(Arc::new);
+    let flow_id = uuid::Uuid::new_v4().to_string();
+    let outputs = execute_flow(
+        &flow,
+        &node_bins,
+        &mut store,
+        initial_outputs,
+        None,
+        None,
+        history,
+        &flow_id,
+    )
+    .await?;
 
     let result = serde_json::to_string(&outputs)?;
     println!("{result}");
@@ -651,6 +663,9 @@ struct AppState {
     step_tx: broadcast::Sender<StepCommand>,
     snapshots: Arc<Mutex<Vec<Snapshot>>>,
     flows_dir: PathBuf,
+    oauth_store: OAuthStore,
+    public_url: String,
+    history_path: PathBuf,
 }
 
 #[derive(Clone)]
@@ -661,6 +676,52 @@ struct StepConfig {
 
 type EventFn = dyn Fn(&str, Option<&str>, Option<&Value>, Option<&str>) + Send + Sync;
 
+// ── OAuth State ───────────────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct PendingOAuth {
+    spec_id: String,
+    spec_label: String,
+    oauth_config: OAuthConfig,
+    #[allow(dead_code)]
+    created_at: std::time::Instant,
+}
+
+type OAuthStore = Arc<std::sync::RwLock<HashMap<String, PendingOAuth>>>;
+
+fn find_oauth_spec(spec_id: &str) -> Option<(String, String, OAuthConfig)> {
+    let binaries = scan_binaries();
+    for name in &binaries {
+        if let Ok(bin) = describe_binary_sync(name) {
+            for spec in bin.manifest.credential_specs() {
+                if spec.id == spec_id {
+                    if let Some(oauth) = spec.oauth {
+                        return Some((spec.label, bin.binary, oauth));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn describe_binary_sync(path: &str) -> Result<NodeBin> {
+    let mut cmd = std::process::Command::new(path);
+    cmd.arg("--describe")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let out = cmd.output()?;
+    if !out.status.success() {
+        bail!("{path} --describe failed");
+    }
+    let manifest: Manifest = serde_json::from_slice(&out.stdout)?;
+    Ok(NodeBin {
+        binary: path.to_string(),
+        manifest,
+    })
+}
+
 async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
     let (tx, _) = broadcast::channel(256);
     let (step_tx, _) = broadcast::channel(256);
@@ -669,11 +730,20 @@ async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
         .join("ngalir")
         .join("flows");
     std::fs::create_dir_all(&flows_dir).ok();
+    let oauth_store: OAuthStore = Arc::new(std::sync::RwLock::new(HashMap::new()));
+    let public_url =
+        std::env::var("NGALIR_PUBLIC_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+
+    let history_path = history_db_path();
+
     let state = AppState {
         tx,
         step_tx,
         snapshots: Arc::new(Mutex::new(Vec::new())),
         flows_dir,
+        oauth_store,
+        public_url,
+        history_path,
     };
 
     let assets = ServeDir::new(ui_dir).append_index_html_on_directories(true);
@@ -714,6 +784,19 @@ async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
         .route(
             "/api/credentials/{id}/test",
             axum::routing::post(api_credentials_test),
+        )
+        .route(
+            "/api/oauth/{spec_id}/authorize",
+            axum::routing::get(api_oauth_authorize),
+        )
+        .route(
+            "/api/oauth/callback",
+            axum::routing::get(api_oauth_callback),
+        )
+        .route("/api/history", axum::routing::get(api_history_list))
+        .route(
+            "/api/history/{flow_id}",
+            axum::routing::get(api_history_get),
         )
         .route("/ws", axum::routing::get(ws_handler))
         .with_state(state);
@@ -820,6 +903,7 @@ async fn run_flow_with_events(
         step_tx: step_tx.clone(),
     });
 
+    let history = HistoryDb::new(history_db_path()).ok().map(Arc::new);
     let result = execute_flow(
         &flow,
         &node_bins,
@@ -827,6 +911,8 @@ async fn run_flow_with_events(
         HashMap::new(),
         Some(&send),
         step_cfg.as_ref(),
+        history.clone(),
+        &flow_id,
     )
     .await;
 
@@ -857,6 +943,9 @@ async fn run_flow_with_events(
         }
         Err(e) => {
             send("flow_failed", None, None, Some(&e.to_string()));
+            if let Some(ref h) = history {
+                let _ = h.record_flow_end(&flow_id, "failed", Some(&e.to_string()));
+            }
             Err(e)
         }
     }
@@ -1567,6 +1656,7 @@ impl StateStore {
 
 // ── Flow execution ─────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn execute_flow(
     flow: &FlowSpec,
     node_bins: &HashMap<String, NodeBin>,
@@ -1574,6 +1664,8 @@ async fn execute_flow(
     initial_outputs: HashMap<String, Value>,
     on_event: Option<&EventFn>,
     step_cfg: Option<&StepConfig>,
+    history: Option<Arc<HistoryDb>>,
+    flow_id: &str,
 ) -> Result<HashMap<String, Value>> {
     let sem = Arc::new(Semaphore::new(flow.concurrency.max(1)));
     let mut merged = store.data.clone();
@@ -1611,9 +1703,17 @@ async fn execute_flow(
         resumed,
         "flow starting"
     );
+    if let Some(ref h) = history {
+        let _ = h.record_flow_start(flow_id, &flow.name, remaining.len());
+    }
     FLOW_EXECUTIONS.with_label_values(&["started"]).inc();
     let flow_started = Instant::now();
     let error_count = 0u64;
+    let node_types: HashMap<String, String> = flow
+        .nodes
+        .iter()
+        .map(|n| (n.id.clone(), n.use_.clone()))
+        .collect();
 
     while !remaining.is_empty() {
         let ready_idx: Vec<usize> = {
@@ -1626,6 +1726,10 @@ async fn execute_flow(
                 .collect()
         };
         if ready_idx.is_empty() {
+            if let Some(ref h) = history {
+                let _ =
+                    h.record_flow_end(flow_id, "failed", Some("cycle or unresolved dependency"));
+            }
             bail!("cycle or unresolved dependency detected among remaining nodes");
         }
 
@@ -1648,6 +1752,9 @@ async fn execute_flow(
                     if let Some(f) = on_event {
                         f("node_skipped", Some(&n.id), Some(&val), None);
                     }
+                    if let Some(ref h) = history {
+                        let _ = h.record_node_skipped(flow_id, &n.id, &n.use_);
+                    }
                     if resumed {
                         store.insert(n.id.clone(), val);
                         store.save()?;
@@ -1666,6 +1773,9 @@ async fn execute_flow(
             if let Some(f) = on_event {
                 f("node_started", Some(&n.id), None, None);
             }
+            if let Some(ref h) = history {
+                let _ = h.record_node_start(flow_id, &n.id, &n.use_, Some(&input));
+            }
 
             let sem = sem.clone();
             let node = n.clone();
@@ -1683,10 +1793,21 @@ async fn execute_flow(
 
         for h in handles {
             let (node_id, inner) = h.await.context("join node task")?;
+            let node_type = node_types.get(&node_id).map(|s| s.as_str()).unwrap_or("?");
             match inner {
                 Ok((id, val)) => {
                     if let Some(f) = on_event {
                         f("node_completed", Some(&node_id), Some(&val), None);
+                    }
+                    if let Some(ref h) = history {
+                        let _ = h.record_node_end(
+                            flow_id,
+                            &node_id,
+                            node_type,
+                            "completed",
+                            Some(&val),
+                            None,
+                        );
                     }
                     outputs.lock().await.insert(id.clone(), val.clone());
                     if resumed {
@@ -1697,6 +1818,16 @@ async fn execute_flow(
                 Err(e) => {
                     if let Some(f) = on_event {
                         f("node_failed", Some(&node_id), None, Some(&e.to_string()));
+                    }
+                    if let Some(ref h) = history {
+                        let _ = h.record_node_end(
+                            flow_id,
+                            &node_id,
+                            node_type,
+                            "failed",
+                            None,
+                            Some(&e.to_string()),
+                        );
                     }
                     return Err(e);
                 }
@@ -1712,6 +1843,9 @@ async fn execute_flow(
                 match rx.recv().await {
                     Ok(cmd) if cmd.flow_id == cfg.flow_id => match cmd.action.as_str() {
                         "stop" => {
+                            if let Some(ref h) = history {
+                                let _ = h.record_flow_end(flow_id, "stopped", None);
+                            }
                             let final_outputs = outputs.lock().await.clone();
                             return Ok(final_outputs);
                         }
@@ -1728,6 +1862,9 @@ async fn execute_flow(
 
     info!("flow completed");
     FLOW_EXECUTIONS.with_label_values(&["completed"]).inc();
+    if let Some(ref h) = history {
+        let _ = h.record_flow_end(flow_id, "completed", None);
+    }
     info!(
         metric = "flow.duration",
         duration_ms = flow_started.elapsed().as_millis(),
@@ -2446,6 +2583,588 @@ async fn api_credentials_test(
             "message": String::from_utf8_lossy(&out.stdout).trim().to_string(),
         }))),
     }
+}
+
+// ── OAuth Endpoints ─────────────────────────────────────────────────────────
+
+/// Redirect the user to the OAuth provider's authorization page.
+async fn api_oauth_authorize(
+    State(state): State<AppState>,
+    axum::extract::Path(spec_id): axum::extract::Path<String>,
+) -> Result<axum::response::Redirect, axum::http::StatusCode> {
+    let (label, _binary, oauth_config) =
+        find_oauth_spec(&spec_id).ok_or(axum::http::StatusCode::NOT_FOUND)?;
+
+    let client_id = std::env::var(&oauth_config.client_id_env).map_err(|_| {
+        error!(
+            env = oauth_config.client_id_env,
+            "OAuth client_id env var not set"
+        );
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let state_token = uuid::Uuid::new_v4().to_string();
+    let pending = PendingOAuth {
+        spec_id: spec_id.clone(),
+        spec_label: label,
+        oauth_config: oauth_config.clone(),
+        created_at: std::time::Instant::now(),
+    };
+    if let Ok(mut store) = state.oauth_store.write() {
+        store.insert(state_token.clone(), pending);
+    }
+
+    let redirect_uri = format!("{}/api/oauth/callback", state.public_url);
+    let scopes = oauth_config.scopes.join(" ");
+
+    let mut params = vec![
+        ("client_id", client_id),
+        ("redirect_uri", redirect_uri),
+        ("state", state_token),
+        ("response_type", "code".to_string()),
+    ];
+    if !scopes.is_empty() {
+        params.push(("scope", scopes));
+    }
+
+    let query = params
+        .iter()
+        .map(|(k, v)| format!("{}={}", urlencode(k), urlencode(v)))
+        .collect::<Vec<_>>()
+        .join("&");
+
+    let auth_url = format!("{}?{}", oauth_config.authorize_url, query);
+    info!(spec_id, %auth_url, "oauth redirect");
+    Ok(axum::response::Redirect::to(&auth_url))
+}
+
+/// Handle the OAuth callback: exchange code for tokens and store credential.
+async fn api_oauth_callback(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+) -> Result<axum::response::Redirect, axum::http::StatusCode> {
+    let state_token = params.get("state").ok_or_else(|| {
+        error!("oauth callback missing state param");
+        axum::http::StatusCode::BAD_REQUEST
+    })?;
+    let code = params.get("code").ok_or_else(|| {
+        error!("oauth callback missing code param");
+        axum::http::StatusCode::BAD_REQUEST
+    })?;
+
+    let pending = {
+        let mut store = state.oauth_store.write().map_err(|e| {
+            error!(error = %e, "oauth store lock failed");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+        store.remove(state_token).ok_or_else(|| {
+            error!(state = %state_token, "oauth state not found or expired");
+            axum::http::StatusCode::BAD_REQUEST
+        })?
+    };
+
+    let client_id = std::env::var(&pending.oauth_config.client_id_env).map_err(|_| {
+        error!(
+            env = pending.oauth_config.client_id_env,
+            "oauth client_id env var not set"
+        );
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let secret_env = pending
+        .oauth_config
+        .client_secret_env
+        .clone()
+        .unwrap_or_else(|| {
+            // Derive from client_id_env: NGALIR_SLACK_CLIENT_ID -> NGALIR_SLACK_CLIENT_SECRET
+            let suffix = pending
+                .oauth_config
+                .client_id_env
+                .strip_suffix("_ID")
+                .unwrap_or(&pending.oauth_config.client_id_env);
+            format!("{}_SECRET", suffix)
+        });
+
+    let client_secret = std::env::var(&secret_env).map_err(|_| {
+        error!(env = secret_env, "oauth client_secret env var not set");
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let redirect_uri = format!("{}/api/oauth/callback", state.public_url);
+
+    // Exchange code for token
+    let client = reqwest::Client::new();
+    let token_params = [
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("redirect_uri", &redirect_uri),
+        ("client_id", &client_id),
+        ("client_secret", &client_secret),
+    ];
+
+    let token_resp = match client
+        .post(&pending.oauth_config.token_url)
+        .form(&token_params)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            error!(error = %e, "oauth token exchange request failed");
+            let err_url = format!(
+                "{}?oauth_error={}",
+                state.public_url,
+                urlencode("Token exchange request failed")
+            );
+            return Ok(axum::response::Redirect::to(&err_url));
+        }
+    };
+
+    let token_body: Value = match token_resp.json().await {
+        Ok(j) => j,
+        Err(e) => {
+            error!(error = %e, "oauth token exchange parse failed");
+            let err_url = format!(
+                "{}?oauth_error={}",
+                state.public_url,
+                urlencode("Invalid token response")
+            );
+            return Ok(axum::response::Redirect::to(&err_url));
+        }
+    };
+
+    let access_token = match token_body["access_token"].as_str() {
+        Some(t) => t.to_string(),
+        None => {
+            error!(body = %token_body, "oauth token response missing access_token");
+            let err_url = format!(
+                "{}?oauth_error={}",
+                state.public_url,
+                urlencode("No access token in response")
+            );
+            return Ok(axum::response::Redirect::to(&err_url));
+        }
+    };
+
+    let refresh_token = token_body["refresh_token"].as_str().map(String::from);
+
+    // Store credential in vault
+    let mut data = serde_json::Map::new();
+    data.insert("access_token".into(), Value::String(access_token));
+    if let Some(rt) = refresh_token {
+        data.insert("refresh_token".into(), Value::String(rt));
+    }
+    if let Some(expires_in) = token_body["expires_in"].as_i64() {
+        data.insert("expires_in".into(), Value::Number(expires_in.into()));
+    }
+
+    let create_req = serde_json::json!({
+        "credential_spec_id": pending.spec_id,
+        "label": format!("{} (OAuth)", pending.spec_label),
+        "auth_type": "oauth2",
+        "data": data,
+    });
+
+    match call_vault_create(create_req).await {
+        Ok(cred) => {
+            let cred_id = cred["id"].as_str().unwrap_or("unknown");
+            info!(cred_id = %cred_id, spec_id = pending.spec_id, "oauth credential created");
+            let ok_url = format!("{}?oauth_success={}", state.public_url, urlencode(cred_id));
+            Ok(axum::response::Redirect::to(&ok_url))
+        }
+        Err(e) => {
+            error!(error = %e, "oauth failed to save credential in vault");
+            let err_url = format!(
+                "{}?oauth_error={}",
+                state.public_url,
+                urlencode("Failed to save credential")
+            );
+            Ok(axum::response::Redirect::to(&err_url))
+        }
+    }
+}
+
+// ── History API endpoints ─────────────────────────────────────────────────
+
+async fn api_history_list(
+    State(state): State<AppState>,
+) -> Result<axum::Json<Value>, axum::http::StatusCode> {
+    let db = HistoryDb::new(state.history_path.clone()).map_err(|e| {
+        error!(error = %e, "failed to open history db");
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    match db.list_runs() {
+        Ok(runs) => Ok(axum::Json(serde_json::json!({"runs": runs}))),
+        Err(e) => {
+            error!(error = %e, "history list failed");
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn api_history_get(
+    State(state): State<AppState>,
+    axum::extract::Path(flow_id): axum::extract::Path<String>,
+) -> Result<axum::Json<Value>, axum::http::StatusCode> {
+    let db = HistoryDb::new(state.history_path.clone()).map_err(|e| {
+        error!(error = %e, "failed to open history db");
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    match db.get_run(&flow_id) {
+        Ok(Some(run)) => Ok(axum::Json(run)),
+        Ok(None) => Err(axum::http::StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!(error = %e, "history get failed");
+            Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+fn urlencode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for byte in s.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            b' ' => out.push_str("%20"),
+            _ => {
+                out.push_str(&format!("%{:02X}", byte));
+            }
+        }
+    }
+    out
+}
+
+// ── Execution History ─────────────────────────────────────────────────────────
+
+fn chrono_now() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let d = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = d.as_secs();
+    let days = secs / 86400;
+    let time_secs = secs % 86400;
+    let hours = time_secs / 3600;
+    let mins = (time_secs % 3600) / 60;
+    let secs = time_secs % 60;
+    let mut y = 1970i64;
+    let mut d = days as i64;
+    loop {
+        let days_in_year = if is_leap(y) { 366 } else { 365 };
+        if d < days_in_year {
+            break;
+        }
+        d -= days_in_year;
+        y += 1;
+    }
+    let month_days = if is_leap(y) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut m = 0;
+    for (i, md) in month_days.iter().enumerate() {
+        if d < *md {
+            m = i + 1;
+            break;
+        }
+    }
+    if m == 0 {
+        m = 12;
+    }
+    let day = d + 1;
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        y, m, day, hours, mins, secs
+    )
+}
+
+fn is_leap(y: i64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+fn history_db_path() -> PathBuf {
+    if let Ok(p) = std::env::var("NGALIR_HISTORY_FILE") {
+        return PathBuf::from(p);
+    }
+    dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("ngalir")
+        .join("history.db")
+}
+
+struct HistoryDb {
+    path: PathBuf,
+}
+
+impl HistoryDb {
+    fn new(path: PathBuf) -> Result<Self> {
+        let db = Self { path };
+        db.init()?;
+        Ok(db)
+    }
+
+    fn connect(&self) -> Result<rusqlite::Connection> {
+        let conn = rusqlite::Connection::open(&self.path)?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        Ok(conn)
+    }
+
+    fn init(&self) -> Result<()> {
+        let conn = self.connect()?;
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS flow_runs (
+                flow_id       TEXT PRIMARY KEY,
+                flow_name     TEXT NOT NULL,
+                status        TEXT NOT NULL,
+                started_at    TEXT NOT NULL,
+                finished_at   TEXT,
+                duration_ms   INTEGER,
+                node_count    INTEGER NOT NULL DEFAULT 0,
+                error         TEXT
+            );
+            CREATE TABLE IF NOT EXISTS node_runs (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                flow_id       TEXT NOT NULL,
+                node_id       TEXT NOT NULL,
+                node_type     TEXT NOT NULL,
+                status        TEXT NOT NULL,
+                started_at    TEXT,
+                finished_at   TEXT,
+                duration_ms   INTEGER,
+                input         TEXT,
+                output        TEXT,
+                error         TEXT,
+                UNIQUE(flow_id, node_id)
+            );",
+        )?;
+        Ok(())
+    }
+
+    fn record_flow_start(&self, flow_id: &str, flow_name: &str, node_count: usize) -> Result<()> {
+        let conn = self.connect()?;
+        let now = chrono_now();
+        conn.execute(
+            "INSERT OR REPLACE INTO flow_runs (flow_id, flow_name, status, started_at, node_count)
+             VALUES (?1, ?2, 'running', ?3, ?4)",
+            rusqlite::params![flow_id, flow_name, now, node_count],
+        )?;
+        Ok(())
+    }
+
+    fn record_flow_end(&self, flow_id: &str, status: &str, error: Option<&str>) -> Result<()> {
+        let conn = self.connect()?;
+        let now = chrono_now();
+        let mut duration_ms: Option<i64> = None;
+        if let Ok(start_row) = conn.query_row(
+            "SELECT started_at FROM flow_runs WHERE flow_id = ?1",
+            rusqlite::params![flow_id],
+            |row| row.get::<_, String>(0),
+        ) {
+            if let (Ok(start), Ok(end)) = (parse_iso8601_ms(&start_row), parse_iso8601_ms(&now)) {
+                duration_ms = Some(end - start);
+            }
+        }
+        conn.execute(
+            "UPDATE flow_runs SET status = ?1, finished_at = ?2, duration_ms = ?3, error = ?4 WHERE flow_id = ?5",
+            rusqlite::params![status, now, duration_ms, error, flow_id],
+        )?;
+        Ok(())
+    }
+
+    fn record_node_start(
+        &self,
+        flow_id: &str,
+        node_id: &str,
+        node_type: &str,
+        input: Option<&Value>,
+    ) -> Result<()> {
+        let conn = self.connect()?;
+        let now = chrono_now();
+        let input_str = input.map(|v| v.to_string());
+        conn.execute(
+            "INSERT OR REPLACE INTO node_runs (flow_id, node_id, node_type, status, started_at, input)
+             VALUES (?1, ?2, ?3, 'running', ?4, ?5)",
+            rusqlite::params![flow_id, node_id, node_type, now, input_str],
+        )?;
+        Ok(())
+    }
+
+    fn record_node_end(
+        &self,
+        flow_id: &str,
+        node_id: &str,
+        _node_type: &str,
+        status: &str,
+        output: Option<&Value>,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.connect()?;
+        let now = chrono_now();
+        let output_str = output.map(|v| v.to_string());
+        let mut duration_ms: Option<i64> = None;
+        if let Ok(Some(start_str)) = conn.query_row(
+            "SELECT started_at FROM node_runs WHERE flow_id = ?1 AND node_id = ?2",
+            rusqlite::params![flow_id, node_id],
+            |row| row.get::<_, Option<String>>(0),
+        ) {
+            if let (Ok(start), Ok(end)) = (parse_iso8601_ms(&start_str), parse_iso8601_ms(&now)) {
+                duration_ms = Some(end - start);
+            }
+        }
+        conn.execute(
+            "UPDATE node_runs SET status = ?1, finished_at = ?2, duration_ms = ?3, output = ?4, error = ?5
+             WHERE flow_id = ?6 AND node_id = ?7",
+            rusqlite::params![status, now, duration_ms, output_str, error, flow_id, node_id],
+        )?;
+        Ok(())
+    }
+
+    fn record_node_skipped(&self, flow_id: &str, node_id: &str, node_type: &str) -> Result<()> {
+        let now = chrono_now();
+        let conn = self.connect()?;
+        conn.execute(
+            "INSERT OR REPLACE INTO node_runs (flow_id, node_id, node_type, status, started_at, finished_at)
+             VALUES (?1, ?2, ?3, 'skipped', ?4, ?5)",
+            rusqlite::params![flow_id, node_id, node_type, now, now],
+        )?;
+        Ok(())
+    }
+
+    fn list_runs(&self) -> Result<Vec<Value>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            "SELECT flow_id, flow_name, status, started_at, finished_at, duration_ms, node_count, error
+             FROM flow_runs ORDER BY started_at DESC LIMIT 100",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let flow_id: String = row.get(0)?;
+            let flow_name: String = row.get(1)?;
+            let status: String = row.get(2)?;
+            let started_at: String = row.get(3)?;
+            let finished_at: Option<String> = row.get(4)?;
+            let duration_ms: Option<i64> = row.get(5)?;
+            let node_count: i64 = row.get(6)?;
+            let error: Option<String> = row.get(7)?;
+            Ok(serde_json::json!({
+                "flow_id": flow_id,
+                "flow_name": flow_name,
+                "status": status,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_ms": duration_ms,
+                "node_count": node_count,
+                "error": error,
+            }))
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    fn get_run(&self, flow_id: &str) -> Result<Option<Value>> {
+        let conn = self.connect()?;
+        let flow = conn
+            .query_row(
+                "SELECT flow_id, flow_name, status, started_at, finished_at, duration_ms, node_count, error
+                 FROM flow_runs WHERE flow_id = ?1",
+                rusqlite::params![flow_id],
+                |row| {
+                    let flow_id: String = row.get(0)?;
+                    let flow_name: String = row.get(1)?;
+                    let status: String = row.get(2)?;
+                    let started_at: String = row.get(3)?;
+                    let finished_at: Option<String> = row.get(4)?;
+                    let duration_ms: Option<i64> = row.get(5)?;
+                    let node_count: i64 = row.get(6)?;
+                    let error: Option<String> = row.get(7)?;
+                    Ok(serde_json::json!({
+                        "flow_id": flow_id,
+                        "flow_name": flow_name,
+                        "status": status,
+                        "started_at": started_at,
+                        "finished_at": finished_at,
+                        "duration_ms": duration_ms,
+                        "node_count": node_count,
+                        "error": error,
+                    }))
+                },
+            )
+            .ok();
+
+        let Some(flow) = flow else { return Ok(None) };
+
+        let mut stmt = conn.prepare(
+            "SELECT node_id, node_type, status, started_at, finished_at, duration_ms, input, output, error
+             FROM node_runs WHERE flow_id = ?1 ORDER BY id ASC",
+        )?;
+        let node_rows = stmt.query_map(rusqlite::params![flow_id], |row| {
+            let node_id: String = row.get(0)?;
+            let node_type: String = row.get(1)?;
+            let status: String = row.get(2)?;
+            let started_at: Option<String> = row.get(3)?;
+            let finished_at: Option<String> = row.get(4)?;
+            let duration_ms: Option<i64> = row.get(5)?;
+            let input: Option<String> = row.get(6)?;
+            let output: Option<String> = row.get(7)?;
+            let error: Option<String> = row.get(8)?;
+            Ok(serde_json::json!({
+                "node_id": node_id,
+                "node_type": node_type,
+                "status": status,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_ms": duration_ms,
+                "input": input.and_then(|s| serde_json::from_str::<Value>(&s).ok()),
+                "output": output.and_then(|s| serde_json::from_str::<Value>(&s).ok()),
+                "error": error,
+            }))
+        })?;
+        let mut nodes = Vec::new();
+        for row in node_rows {
+            nodes.push(row?);
+        }
+
+        Ok(Some(serde_json::json!({
+            "flow": flow,
+            "nodes": nodes,
+        })))
+    }
+}
+
+fn parse_iso8601_ms(s: &str) -> Result<i64> {
+    // Format: 2026-07-22T12:34:56Z
+    if s.len() < 20 {
+        bail!("invalid timestamp: {s}");
+    }
+    let y: i64 = s[0..4].parse()?;
+    let m: i64 = s[5..7].parse()?;
+    let d: i64 = s[8..10].parse()?;
+    let h: i64 = s[11..13].parse()?;
+    let min: i64 = s[14..16].parse()?;
+    let sec: i64 = s[17..19].parse()?;
+    let days = days_since_epoch(y, m, d);
+    Ok((days * 86400 + h * 3600 + min * 60 + sec) * 1000)
+}
+
+fn days_since_epoch(y: i64, m: i64, d: i64) -> i64 {
+    let mut total = 0i64;
+    for year in 1970..y {
+        total += if is_leap(year) { 366 } else { 365 };
+    }
+    let month_days = if is_leap(y) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    for days in month_days.iter().take(m as usize - 1) {
+        total += days;
+    }
+    total + d - 1
 }
 
 // ── JSON Schema validation ─────────────────────────────────────────────────

@@ -250,10 +250,13 @@
           <!-- OAuth Button -->
           {#if isOAuth(selectedSpecId)}
             <div class="pt-2">
-              <button class="w-full px-4 py-2 text-sm rounded bg-[#4a4ae6] hover:bg-[#5a5af0] text-white transition-colors">
+              <button
+                onclick={() => window.location.href = `/api/oauth/${selectedSpecId}/authorize`}
+                class="w-full px-4 py-2 text-sm rounded bg-[#4a4ae6] hover:bg-[#5a5af0] text-white transition-colors"
+              >
                 Connect with OAuth
               </button>
-              <p class="text-xs text-[#666688] mt-1">Opens a popup to authorize with the service</p>
+              <p class="text-xs text-[#666688] mt-1">Redirects to authorize with the service</p>
             </div>
           {/if}
         {/if}

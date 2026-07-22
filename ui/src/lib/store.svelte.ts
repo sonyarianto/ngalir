@@ -24,9 +24,13 @@ let panX = $state(0)
 let panY = $state(0)
 let zoom = $state(1)
 let skillsMap = $state<Record<string, NodeManifest>>({})
-let currentPage = $state<'editor' | 'credentials'>('editor')
+let currentPage = $state<'editor' | 'credentials' | 'history'>('editor')
 let credentials = $state<Credential[]>([])
 let credentialSpecs = $state<{ id: string; label: string; auth_type: string; manifest: NodeManifest }[]>([])
+let oauthMessage = $state('')
+let oauthType = $state<'success' | 'error'>('success')
+let historyRuns = $state<Record<string, unknown>[]>([])
+let historyRunDetail = $state<Record<string, unknown> | null>(null)
 
 type Snapshot = { nodes: CanvasNode[]; wires: Wire[]; notes: CanvasNote[] }
 let undoStack = $state<Snapshot[]>([])
@@ -641,7 +645,24 @@ async function fetchSkills() {
   } catch { /* ignore */ }
 }
 
-function navigateTo(page: 'editor' | 'credentials') {
+async function fetchHistory() {
+  try {
+    const res = await fetch('/api/history')
+    if (!res.ok) return
+    const data = await res.json()
+    historyRuns = data.runs || []
+  } catch { /* ignore */ }
+}
+
+async function fetchHistoryRun(flowId: string) {
+  try {
+    const res = await fetch(`/api/history/${encodeURIComponent(flowId)}`)
+    if (!res.ok) { historyRunDetail = null; return }
+    historyRunDetail = await res.json()
+  } catch { historyRunDetail = null }
+}
+
+function navigateTo(page: 'editor' | 'credentials' | 'history') {
   currentPage = page
 }
 
@@ -721,6 +742,12 @@ export function getStore() {
     get currentPage() { return currentPage },
     get credentials() { return credentials },
     get credentialSpecs() { return credentialSpecs },
+    get historyRuns() { return historyRuns },
+    get historyRunDetail() { return historyRunDetail },
+    get oauthMessage() { return oauthMessage },
+    get oauthType() { return oauthType },
+    set oauthMessage(v: string) { oauthMessage = v },
+    set oauthType(v: 'success' | 'error') { oauthType = v },
     set flowName(v: string) { flowName = v },
     set filename(v: string) { filename = v },
     set showFlowList(v: boolean) { showFlowList = v },
@@ -774,6 +801,8 @@ export function getStore() {
     deleteCredential,
     testCredential,
     getCredential,
+    fetchHistory,
+    fetchHistoryRun,
     navigateTo,
   }
 }

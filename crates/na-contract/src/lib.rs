@@ -41,6 +41,9 @@ pub struct OAuthConfig {
     #[serde(default)]
     pub scopes: Vec<String>,
     pub client_id_env: String,
+    /// Env var name containing the OAuth client secret (None = derive from client_id_env).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_secret_env: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -328,6 +331,7 @@ mod tests {
                 token_url: "https://slack.com/api/oauth.token".into(),
                 scopes: vec!["chat:write".into()],
                 client_id_env: "NGALIR_SLACK_CLIENT_ID".into(),
+                client_secret_env: None,
             }),
         };
         let json = serde_json::to_string_pretty(&spec).unwrap();
@@ -364,6 +368,7 @@ mod tests {
                     token_url: "https://slack.com/api/oauth.token".into(),
                     scopes: vec![],
                     client_id_env: "NGALIR_SLACK_CLIENT_ID".into(),
+                    client_secret_env: None,
                 }),
             }],
             streaming: false,

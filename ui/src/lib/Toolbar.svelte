@@ -57,6 +57,12 @@
   >
     Credentials
   </button>
+  <button
+    class="px-3 py-1 border border-[#7c3aed] rounded bg-[#3a2a6e] text-sm cursor-pointer hover:bg-[#4a3a7e]"
+    onclick={() => { store.fetchHistory(); store.navigateTo('history') }}
+  >
+    History
+  </button>
   <div class="flex-1"></div>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={() => store.listFlows()}>Flows</button>
   <button class="px-3 py-1 border border-[#444] rounded bg-[#2a2a3e] text-sm cursor-pointer hover:bg-[#3a3a4e]" onclick={handleLoad}>Open</button>
