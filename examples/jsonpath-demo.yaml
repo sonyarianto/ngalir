@@ -1,5 +1,5 @@
 version: 1
-name: jq-demo
+name: jsonpath-demo
 description: "Extract a field from JSON using na-jsonpath"
 nodes:
   - id: src
@@ -7,7 +7,7 @@ nodes:
     with:
       message: hello
   - id: extract
-    use: jq
+    use: jsonpath
     inputs:
       data: src.echo
     with:

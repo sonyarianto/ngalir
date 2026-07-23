@@ -65,7 +65,11 @@ fn main() {
 }
 
 fn eval_filter(data: &Value, filter: &str) -> Value {
-    let filter = filter.trim();
+    let mut filter = filter.trim();
+    if let Some(rest) = filter.strip_prefix('$') {
+        let rest = rest.trim();
+        filter = if rest.is_empty() { "." } else { rest };
+    }
     if filter.is_empty() || filter == "." {
         return data.clone();
     }
@@ -103,6 +107,12 @@ fn eval_stage(data: &Value, expr: &str) -> Value {
         let inner = &expr[1..expr.len() - 1];
         if let Some(slice) = parse_slice(inner) {
             return slice_array(data, slice.0, slice.1);
+        }
+        if let Ok(idx) = inner.parse::<usize>() {
+            return match data {
+                Value::Array(arr) => arr.get(idx).cloned().unwrap_or(Value::Null),
+                _ => Value::Null,
+            };
         }
     }
 
@@ -420,5 +430,36 @@ mod tests {
                 {"name": "bob", "score": 200}
             ])
         );
+    }
+
+    #[test]
+    fn test_dollar_root_identity() {
+        let v = json!({"a": 1});
+        assert_eq!(eval_filter(&v, "$"), v);
+    }
+
+    #[test]
+    fn test_dollar_dot_path() {
+        let v = json!({"a": {"b": 42}});
+        assert_eq!(eval_filter(&v, "$.a.b"), json!(42));
+    }
+
+    #[test]
+    fn test_dollar_bracket_index() {
+        let v = json!([10, 20, 30]);
+        assert_eq!(eval_filter(&v, "$[0]"), json!(10));
+    }
+
+    #[test]
+    fn test_dollar_dot_side_by_side() {
+        let v = json!({"title": "hello"});
+        assert_eq!(eval_filter(&v, "$.title"), eval_filter(&v, ".title"));
+        assert_eq!(eval_filter(&v, "$"), eval_filter(&v, "."));
+    }
+
+    #[test]
+    fn test_whitespace_after_dollar() {
+        let v = json!({"a": 1});
+        assert_eq!(eval_filter(&v, "$ .a"), json!(1));
     }
 }

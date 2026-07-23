@@ -1,6 +1,6 @@
 version: 1
 name: file-demo
-description: "Write a file, then read it back in the same flow"
+description: "Write a file, then read it back — writer must finish before reader"
 nodes:
   - id: writer
     use: file
@@ -13,3 +13,4 @@ nodes:
     with:
       action: read
       path: /tmp/ngalir-demo.txt
+    when: "{{ writer.bytes >= 0 }}"

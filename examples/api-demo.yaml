@@ -1,0 +1,19 @@
+version: 1
+name: api-demo
+description: "Fetch a public JSON API, extract a field, and echo it"
+nodes:
+  - id: fetch
+    use: http
+    with:
+      method: GET
+      url: https://jsonplaceholder.typicode.com/todos/1
+  - id: extract
+    use: jsonpath
+    inputs:
+      data: fetch.body
+    with:
+      filter: .title
+  - id: output
+    use: echo
+    inputs:
+      message: extract.result

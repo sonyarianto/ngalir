@@ -45,7 +45,7 @@ fn write_output(val: serde_json::Value) {
         std::fs::write(&out_path, &json).unwrap_or_else(|e| {
             fail(exit_code::GENERIC, format!("write output file failed: {e}"));
         });
-        println!("{}", out_path.display());
+        println!("\"{}\"", out_path.display());
     } else {
         println!("{val}");
     }

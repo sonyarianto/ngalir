@@ -2299,7 +2299,8 @@ async fn resolve_vault_recursive(value: &mut Value) -> Result<()> {
 }
 
 async fn call_vault_resolve(ref_str: &str) -> Result<String> {
-    let mut cmd = Command::new("na-vault");
+    let vault_bin = find_in_node_path("na-vault").unwrap_or_else(|| "na-vault".into());
+    let mut cmd = Command::new(&vault_bin);
     cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -2330,7 +2331,8 @@ async fn call_vault_resolve(ref_str: &str) -> Result<String> {
 // ── Credential CRUD helpers ───────────────────────────────────────────────
 
 async fn call_vault(mode: &str, id: Option<&str>, stdin_data: Option<Value>) -> Result<Value> {
-    let mut cmd = Command::new("na-vault");
+    let vault_bin = find_in_node_path("na-vault").unwrap_or_else(|| "na-vault".into());
+    let mut cmd = Command::new(&vault_bin);
     cmd.arg(mode)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
