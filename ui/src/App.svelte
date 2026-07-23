@@ -13,7 +13,7 @@
   let toastMessage = $state('')
   let toastType = $state<'success' | 'error'>('success')
 
-  $effect(() => { store.loadSample(); store.fetchSkills(); store.fetchCredentials() })
+  onMount(() => { store.loadSample(); store.fetchSkills(); store.fetchCredentials() })
 
   $effect(() => {
     if (store.oauthMessage) {
