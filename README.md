@@ -5,17 +5,39 @@ binaries (`na-*`); flows are declarative YAML DAGs executed by `ngalir`.
 Production-ready: containerised, observable via Prometheus, supports subflows,
 streaming, checkpoint/resume, and AI-powered workflow generation.
 
-## Quick start
+## Install
+
+### Binary (Linux x86_64 / aarch64)
 
 ```bash
-# Build everything
-cargo build
+curl -sSL https://raw.githubusercontent.com/sonyarianto/ngalir/main/scripts/install.sh | bash
+```
 
-# List available nodes
-PATH=target/debug:$PATH ./target/debug/ngalir nodes
+This downloads the latest release from GitHub and installs to `/usr/local/bin`.
+Override the install directory with `NGALIR_INSTALL_DIR` or pin a version:
 
-# Run the echo demo
-PATH=target/debug:$PATH ./target/debug/ngalir run examples/echo-demo.yaml
+```bash
+NGALIR_VERSION=v0.1.0 NGALIR_INSTALL_DIR=~/.local/bin bash -c "$(curl -sSL https://raw.githubusercontent.com/sonyarianto/ngalir/main/scripts/install.sh)"
+```
+
+### Docker
+
+```bash
+docker pull ghcr.io/sonyarianto/ngalir:latest
+docker run --rm ghcr.io/sonyarianto/ngalir:latest --help
+```
+
+Or use Docker Compose for the full stack (CLI + web UI + webhook + schedule):
+
+```bash
+docker compose up -d
+```
+
+### Build from source
+
+```bash
+cargo build --release
+# Binaries are in target/release/ngalir and target/release/na-*
 ```
 
 ## Concepts
@@ -158,23 +180,12 @@ export NGALIR_VAULT_KEY="<base64-key>"
 
 ## Docker
 
+See [Install > Docker](#docker-1) for pre-built images. To build locally:
+
 ```bash
-# Build the image
 docker build -t ngalir/ngalir .
-
-# Run the CLI
-docker run --rm ngalir/ngalir --help
-
-# Run a flow (mount flows directory)
-docker run --rm -v /path/to/flows:/flows ngalir/ngalir run /flows/my-flow.yaml
-
-# Daemon services with Prometheus
-docker compose up -d webhook schedule
-# webhook:8080, webhook metrics:9091, schedule metrics:9092
+docker compose up -d
 ```
-
-`docker compose up` starts the web UI server (port 8080), webhook daemon, and
-schedule daemon with persistent volumes and metrics ports exposed.
 
 ## Building a custom node
 

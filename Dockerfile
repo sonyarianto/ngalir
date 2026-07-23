@@ -1,3 +1,10 @@
+FROM node:22-alpine AS ui-builder
+WORKDIR /app
+COPY ui/package*.json ./
+RUN npm ci
+COPY ui/ .
+RUN npm run build
+
 FROM rust:latest AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -22,8 +29,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /out/bin /usr/local/bin/
+COPY --from=ui-builder /app/dist /usr/share/ngalir/ui
 
 ENV NGALIR_NODE_PATH=/usr/local/bin
+ENV NGALIR_UI_DIR=/usr/share/ngalir/ui
 
 ENTRYPOINT ["ngalir"]
 CMD ["--help"]

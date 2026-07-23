@@ -116,8 +116,9 @@ jobs:
       - run: |
           mkdir -p dist
           for bin in target/${{ matrix.target }}/release/ngalir target/${{ matrix.target }}/release/na-*; do
-            [ -f "$bin" ] && cp "$bin" dist/
+            [ -f "$bin" ] && [ -x "$bin" ] && cp "$bin" dist/
           done
+          cp scripts/install.sh dist/
           cd dist && tar czf ../ngalir-${{ github.ref_name }}-${{ matrix.target }}.tar.gz *
       - uses: actions/download-artifact@v4
         with:
