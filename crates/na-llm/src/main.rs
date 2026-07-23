@@ -103,7 +103,8 @@ struct Usage {
     total_tokens: Option<u64>,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
         print_manifest(&manifest());
@@ -134,12 +135,7 @@ fn main() {
     let temperature = input["temperature"].as_f64();
     let max_tokens = input["max_tokens"].as_u64();
 
-    let rt = tokio::runtime::Runtime::new()
-        .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("runtime init failed: {e}")));
-
-    rt.block_on(async {
-        cmd_chat(api_base, model, messages, temperature, max_tokens, &api_key).await;
-    });
+    cmd_chat(api_base, model, messages, temperature, max_tokens, &api_key).await;
 }
 
 fn resolve_api_key(input: &Value) -> String {

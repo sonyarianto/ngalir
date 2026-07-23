@@ -38,7 +38,8 @@ fn manifest() -> Manifest {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
         print_manifest(&manifest());
@@ -48,12 +49,7 @@ fn main() {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
     }
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    rt.block_on(run());
+    run().await;
 }
 
 async fn run() {

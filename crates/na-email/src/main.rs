@@ -38,7 +38,8 @@ fn manifest() -> Manifest {
     }
 }
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
         print_manifest(&manifest());
@@ -78,28 +79,16 @@ fn main() {
             .map(String::from)
     });
 
-    let tokio_rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap_or_else(|e| {
-            fail(
-                exit_code::GENERIC,
-                format!("failed to build tokio runtime: {e}"),
-            )
-        });
-
-    let result = tokio_rt.block_on(async {
-        send_email(
-            &to,
-            &subject,
-            &body,
-            smtp_host,
-            smtp_port,
-            username,
-            password.as_deref(),
-        )
-        .await
-    });
+    let result = send_email(
+        &to,
+        &subject,
+        &body,
+        smtp_host,
+        smtp_port,
+        username,
+        password.as_deref(),
+    )
+    .await;
 
     match result {
         Ok(_msg_id) => {

@@ -106,7 +106,8 @@ struct SheetsAppendResponse {
     updated_rows: Option<u64>,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
         print_manifest(&manifest());
@@ -140,9 +141,7 @@ fn main() {
                 std::process::exit(0);
             }
         };
-        let rt = tokio::runtime::Runtime::new()
-            .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("runtime init failed: {e}")));
-        rt.block_on(test_connection(&credentials));
+        test_connection(&credentials).await;
         return;
     }
 
@@ -159,24 +158,19 @@ fn main() {
         .unwrap_or("Sheet1");
     let has_headers = input["has_headers"].as_bool().unwrap_or(true);
 
-    let rt = tokio::runtime::Runtime::new()
-        .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("runtime init failed: {e}")));
+    let token = match get_access_token(&credentials).await {
+        Ok(t) => t,
+        Err(e) => fail(exit_code::AUTH, format!("auth failed: {e}")),
+    };
 
-    rt.block_on(async {
-        let token = match get_access_token(&credentials).await {
-            Ok(t) => t,
-            Err(e) => fail(exit_code::AUTH, format!("auth failed: {e}")),
-        };
-
-        match action {
-            "read" => cmd_read(sid, range, has_headers, &token).await,
-            "append" => cmd_append(sid, range, &input, &token).await,
-            _ => fail(
-                exit_code::INVALID_INPUT,
-                "action must be 'read' or 'append'",
-            ),
-        }
-    });
+    match action {
+        "read" => cmd_read(sid, range, has_headers, &token).await,
+        "append" => cmd_append(sid, range, &input, &token).await,
+        _ => fail(
+            exit_code::INVALID_INPUT,
+            "action must be 'read' or 'append'",
+        ),
+    }
 }
 
 async fn test_connection(credentials_json: &str) {

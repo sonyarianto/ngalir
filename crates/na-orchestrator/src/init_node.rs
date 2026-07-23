@@ -310,11 +310,11 @@ async fn test_connection(input: &Value) {
             ""
         };
 
-        let exec = r#"    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    rt.block_on(run());
+        let exec = r#"}
+
+#[tokio::main]
+async fn main() {
+    run().await;
 }
 
 async fn run() {
@@ -348,8 +348,7 @@ fn run() {"#;
     let test_connection_block = if has_creds && has_tokio {
         r#"    if args.iter().any(|a| a == "--test-connection") {
         let input = read_input();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(test_connection(&input));
+        test_connection(&input).await;
         return;
     }
 "#
