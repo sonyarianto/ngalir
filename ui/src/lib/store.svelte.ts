@@ -773,6 +773,7 @@ export function getStore() {
     get zoom() { return zoom },
     get skillsMap() { return skillsMap },
     get flowError() { return flowError },
+    set flowError(v: string) { flowError = v },
     get currentPage() { return currentPage },
     get credentials() { return credentials },
     get credentialSpecs() { return credentialSpecs },
