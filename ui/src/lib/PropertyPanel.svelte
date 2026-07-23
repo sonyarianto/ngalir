@@ -110,13 +110,15 @@
   {#if note}
     <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Note Properties</h3>
     <div class="mb-2">
-      <label class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
-      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={note.id} disabled />
+      <label for="prop-note-id" class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
+      <input id="prop-note-id" class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={note.id} disabled />
     </div>
+    <!-- svelte-ignore a11y_label_has_associated_control -->
     <div class="mb-2">
       <label class="block text-[10px] text-[#888] uppercase mb-0.5">position</label>
       <div class="text-[11px] text-[#999]">x: {Math.round(note.position.x)}, y: {Math.round(note.position.y)}</div>
     </div>
+    <!-- svelte-ignore a11y_label_has_associated_control -->
     <div class="mb-2">
       <label class="block text-[10px] text-[#888] uppercase mb-0.5">size</label>
       <div class="flex gap-2 items-center">
@@ -128,25 +130,26 @@
   {:else if node}
     <h3 class="text-xs text-[#7c3aed] uppercase tracking-wider mb-2">Properties</h3>
     <div class="mb-2">
-      <label class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
-      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.id} oninput={updateId} />
+      <label for="prop-node-id" class="block text-[10px] text-[#888] uppercase mb-0.5">id</label>
+      <input id="prop-node-id" class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.id} oninput={updateId} />
     </div>
     <div class="mb-2">
-      <label class="block text-[10px] text-[#888] uppercase mb-0.5">use</label>
-      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.use} oninput={updateUse} />
+      <label for="prop-node-use" class="block text-[10px] text-[#888] uppercase mb-0.5">use</label>
+      <input id="prop-node-use" class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.use} oninput={updateUse} />
     </div>
     <div class="mb-2">
-      <label class="block text-[10px] text-[#888] uppercase mb-0.5">when</label>
-      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.when ?? ''} placeholder="optional" oninput={updateWhen} />
+      <label for="prop-node-when" class="block text-[10px] text-[#888] uppercase mb-0.5">when</label>
+      <input id="prop-node-when" class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.when ?? ''} placeholder="optional" oninput={updateWhen} />
     </div>
     <div class="mb-2">
-      <label class="block text-[10px] text-[#888] uppercase mb-0.5">on_error</label>
-      <input class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.on_error ?? ''} placeholder="optional" oninput={updateOnError} />
+      <label for="prop-node-onerror" class="block text-[10px] text-[#888] uppercase mb-0.5">on_error</label>
+      <input id="prop-node-onerror" class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border" value={node.on_error ?? ''} placeholder="optional" oninput={updateOnError} />
     </div>
     <div class="mb-2">
-      <label class="block text-[10px] text-[#888] uppercase mb-0.5">with (config)</label>
-      <textarea class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border resize-y" value={JSON.stringify(node.with ?? {}, null, 2)} oninput={updateWith} rows="4"></textarea>
+      <label for="prop-node-with" class="block text-[10px] text-[#888] uppercase mb-0.5">with (config)</label>
+      <textarea id="prop-node-with" class="w-full px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-xs font-mono box-border resize-y" value={JSON.stringify(node.with ?? {}, null, 2)} oninput={updateWith} rows="4"></textarea>
     </div>
+    <!-- svelte-ignore a11y_label_has_associated_control -->
     <div class="mb-2">
       <label class="block text-[10px] text-[#888] uppercase mb-0.5">inputs</label>
       {#each Object.entries(node.inputs ?? {}) as [k, v]}
@@ -164,9 +167,10 @@
         <h4 class="text-[10px] text-[#7c3aed] uppercase tracking-wider mb-2">Credentials</h4>
         {#each credentialSpecs as spec}
           <div class="mb-2">
-            <label class="block text-[10px] text-[#888] uppercase mb-0.5">{spec.label}</label>
+            <label for="prop-cred-{spec.id}" class="block text-[10px] text-[#888] uppercase mb-0.5">{spec.label}</label>
             <div class="flex gap-1 items-center">
               <select
+                id="prop-cred-{spec.id}"
                 class="flex-1 min-w-0 px-1.5 py-1 border border-[#333] rounded bg-[#0f0f23] text-[#e0e0e0] text-[11px] font-mono box-border"
                 onchange={(e) => {
                   const val = (e.target as HTMLSelectElement).value

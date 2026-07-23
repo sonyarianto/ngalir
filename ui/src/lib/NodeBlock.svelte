@@ -83,6 +83,7 @@
 
 <svelte:window onmousemove={handleMouseMove} onmouseup={handleMouseUp} />
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   bind:this={el}
   data-node-id={node.id}
@@ -94,6 +95,7 @@
   class:border-[#555]={!node.selected}
   style="left: {node.position.x}px; top: {node.position.y}px"
   onmousedown={handleMouseDown}
+  role="application"
 >
   <div class="px-2 py-1 bg-[#2a2a4a] border-b border-[#333] rounded-t-md font-semibold text-[#7c3aed] font-mono flex items-center gap-2">
       <span class="flex-1">{node.use}</span>
@@ -119,7 +121,8 @@
           data-node-id={node.id}
           data-port={port}
           onmouseup={(e) => handlePortMouseUp(e, port)}
-          role="button"></span>{port} {#if isConnected(port)}← {(node.inputs as Record<string, string>)?.[port] ?? ''}{:else}(unconnected){/if}
+          role="button"
+          tabindex="0"></span>{port} {#if isConnected(port)}← {(node.inputs as Record<string, string>)?.[port] ?? ''}{:else}(unconnected){/if}
       </div>
     {/each}
     {#each outputPorts as port, i}
@@ -130,7 +133,7 @@
           data-port-output
           data-node-id={node.id}
           onmousedown={(e) => handlePortMouseDown(e, port)}
-        />
+          tabindex="0"></span>
       </div>
     {/each}
   </div>

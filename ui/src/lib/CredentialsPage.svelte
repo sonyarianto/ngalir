@@ -190,7 +190,9 @@
 
 <!-- Add Credential Modal -->
 {#if showModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={closeModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="bg-[#1a1a3e] border border-[#2a2a4a] rounded-lg w-[500px] max-h-[80vh] overflow-auto" onclick={(e) => e.stopPropagation()}>
       <div class="px-6 py-4 border-b border-[#2a2a4a]">
         <h2 class="text-lg font-semibold">Add Credential</h2>
@@ -198,8 +200,9 @@
       <div class="px-6 py-4 space-y-4">
         <!-- Select Spec -->
         <div>
-          <label class="block text-sm text-[#8888cc] mb-1">Service Type</label>
+          <label for="cred-service-type" class="block text-sm text-[#8888cc] mb-1">Service Type</label>
           <select
+            id="cred-service-type"
             bind:value={selectedSpecId}
             onchange={(e) => selectSpec((e.target as HTMLSelectElement).value)}
             class="w-full bg-[#0f0f23] border border-[#2a2a4a] rounded px-3 py-2 text-sm text-white"
@@ -214,8 +217,9 @@
         {#if selectedSpecId}
           <!-- Label -->
           <div>
-            <label class="block text-sm text-[#8888cc] mb-1">Label</label>
+            <label for="cred-label" class="block text-sm text-[#8888cc] mb-1">Label</label>
             <input
+              id="cred-label"
               bind:value={newLabel}
               placeholder="e.g. My Google Sheets SA"
               class="w-full bg-[#0f0f23] border border-[#2a2a4a] rounded px-3 py-2 text-sm text-white"
@@ -225,12 +229,13 @@
           <!-- Dynamic Fields -->
           {#each findSpecByManifest()?.fields ?? [] as field}
             <div>
-              <label class="block text-sm text-[#8888cc] mb-1">
+              <label for="cred-field-{field.key}" class="block text-sm text-[#8888cc] mb-1">
                 {field.label}
                 {#if field.required}<span class="text-red-400">*</span>{/if}
               </label>
               {#if field.input_type === 'textarea'}
                 <textarea
+                  id="cred-field-{field.key}"
                   bind:value={formValues[field.key]}
                   placeholder={field.label}
                   rows="4"
@@ -238,6 +243,7 @@
                 ></textarea>
               {:else}
                 <input
+                  id="cred-field-{field.key}"
                   type={field.input_type === 'password' ? 'password' : 'text'}
                   bind:value={formValues[field.key]}
                   placeholder={field.label}

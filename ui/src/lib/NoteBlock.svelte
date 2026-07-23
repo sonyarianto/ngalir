@@ -47,6 +47,7 @@
 
 <svelte:window onmousemove={handleMouseMove} onmouseup={handleMouseUp} />
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   bind:this={el}
   data-note={note.id}
@@ -57,6 +58,7 @@
   onmousedown={handleMouseDown}
   role="region"
   aria-label="Sticky note"
+  tabindex="0"
 >
   <div class="flex items-center justify-between px-2 py-1 bg-black/10 rounded-t-lg cursor-move">
     <span class="text-[10px] text-black/50 uppercase tracking-wider">Note</span>
