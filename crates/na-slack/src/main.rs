@@ -4,6 +4,8 @@ use na_contract::{
 };
 use serde_json::Value;
 
+const SLACK_API_BASE: &str = "https://slack.com/api";
+
 fn manifest() -> Manifest {
     Manifest {
         name: "na-slack".to_string(),
@@ -95,8 +97,8 @@ async fn run() {
         .unwrap();
 
     match action {
-        "post_message" => cmd_post_message(&client, &token, channel, &input).await,
-        "read_history" => cmd_read_history(&client, &token, channel, &input).await,
+        "post_message" => cmd_post_message(&client, &token, channel, SLACK_API_BASE, &input).await,
+        "read_history" => cmd_read_history(&client, &token, channel, SLACK_API_BASE, &input).await,
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}', expected 'post_message' or 'read_history'"),
@@ -104,7 +106,13 @@ async fn run() {
     }
 }
 
-async fn cmd_post_message(client: &reqwest::Client, token: &str, channel: &str, input: &Value) {
+async fn cmd_post_message(
+    client: &reqwest::Client,
+    token: &str,
+    channel: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let text = input["text"].as_str().unwrap_or("");
     if text.is_empty() {
         fail(
@@ -113,8 +121,9 @@ async fn cmd_post_message(client: &reqwest::Client, token: &str, channel: &str, 
         );
     }
 
+    let url = format!("{base_url}/chat.postMessage");
     let resp = client
-        .post("https://slack.com/api/chat.postMessage")
+        .post(&url)
         .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({ "channel": channel, "text": text }))
         .send()
@@ -142,12 +151,19 @@ async fn cmd_post_message(client: &reqwest::Client, token: &str, channel: &str, 
     println!("{output}");
 }
 
-async fn cmd_read_history(client: &reqwest::Client, token: &str, channel: &str, input: &Value) {
+async fn cmd_read_history(
+    client: &reqwest::Client,
+    token: &str,
+    channel: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let count = input.get("count").and_then(Value::as_u64).unwrap_or(10);
     let limit = count.to_string();
 
+    let url = format!("{base_url}/conversations.history");
     let resp = client
-        .get("https://slack.com/api/conversations.history")
+        .get(&url)
         .header("Authorization", format!("Bearer {token}"))
         .query(&[("channel", channel), ("limit", &limit)])
         .send()
@@ -185,6 +201,8 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use std::process::Command;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn bin_path() -> PathBuf {
         let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -266,5 +284,46 @@ mod tests {
         }
         let output = child.wait_with_output().expect("wait");
         assert!(!output.status.success());
+    }
+
+    // ── Mock HTTP tests ─────────────────────────────────────────────────────
+    // Note: `fail()` calls process::exit(), so error paths must be tested via
+    // subprocess (see test_missing_action_fails above), not via direct fn calls.
+
+    #[tokio::test]
+    async fn test_post_message_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat.postMessage"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"ok": true, "ts": "1234567890.123456"})),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"text": "Hello from test"});
+        cmd_post_message(&client, "test-token", "C123", &mock_server.uri(), &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_read_history_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/conversations.history"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "messages": [
+                    {"text": "first", "user": "U1", "ts": "111"},
+                    {"text": "second", "user": "U2", "ts": "222"}
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"count": 2});
+        cmd_read_history(&client, "test-token", "C123", &mock_server.uri(), &input).await;
     }
 }

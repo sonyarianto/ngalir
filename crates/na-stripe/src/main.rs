@@ -4,6 +4,8 @@ use na_contract::{
 };
 use serde_json::Value;
 
+const STRIPE_API_BASE: &str = "https://api.stripe.com/v1";
+
 fn manifest() -> Manifest {
     Manifest {
         name: "na-stripe".to_string(),
@@ -104,11 +106,11 @@ async fn run() {
         .unwrap();
 
     match action {
-        "list_customers" => cmd_list_customers(&client, &secret_key, &input).await,
-        "create_customer" => cmd_create_customer(&client, &secret_key, &input).await,
-        "list_payments" => cmd_list_payments(&client, &secret_key, &input).await,
-        "create_payment" => cmd_create_payment(&client, &secret_key, &input).await,
-        "retrieve_payment" => cmd_retrieve_payment(&client, &secret_key, &input).await,
+        "list_customers" => cmd_list_customers(&client, &secret_key, STRIPE_API_BASE, &input).await,
+        "create_customer" => cmd_create_customer(&client, &secret_key, STRIPE_API_BASE, &input).await,
+        "list_payments" => cmd_list_payments(&client, &secret_key, STRIPE_API_BASE, &input).await,
+        "create_payment" => cmd_create_payment(&client, &secret_key, STRIPE_API_BASE, &input).await,
+        "retrieve_payment" => cmd_retrieve_payment(&client, &secret_key, STRIPE_API_BASE, &input).await,
         _ => fail(
             exit_code::INVALID_INPUT,
             format!(
@@ -118,11 +120,17 @@ async fn run() {
     }
 }
 
-async fn cmd_list_customers(client: &reqwest::Client, secret_key: &str, input: &Value) {
+async fn cmd_list_customers(
+    client: &reqwest::Client,
+    secret_key: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let limit = input.get("limit").and_then(Value::as_u64).unwrap_or(10);
 
+    let url = format!("{base_url}/customers");
     let resp = client
-        .get("https://api.stripe.com/v1/customers")
+        .get(&url)
         .basic_auth(secret_key, Some(""))
         .query(&[("limit", limit.to_string())])
         .send()
@@ -153,7 +161,12 @@ async fn cmd_list_customers(client: &reqwest::Client, secret_key: &str, input: &
     println!("{output}");
 }
 
-async fn cmd_create_customer(client: &reqwest::Client, secret_key: &str, input: &Value) {
+async fn cmd_create_customer(
+    client: &reqwest::Client,
+    secret_key: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let mut params: Vec<(&str, String)> = Vec::new();
 
     if let Some(email) = input["email"].as_str() {
@@ -172,8 +185,9 @@ async fn cmd_create_customer(client: &reqwest::Client, secret_key: &str, input: 
         }
     }
 
+    let url = format!("{base_url}/customers");
     let resp = client
-        .post("https://api.stripe.com/v1/customers")
+        .post(&url)
         .basic_auth(secret_key, Some(""))
         .form(&params)
         .send()
@@ -201,7 +215,12 @@ async fn cmd_create_customer(client: &reqwest::Client, secret_key: &str, input: 
     println!("{output}");
 }
 
-async fn cmd_list_payments(client: &reqwest::Client, secret_key: &str, input: &Value) {
+async fn cmd_list_payments(
+    client: &reqwest::Client,
+    secret_key: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let limit = input.get("limit").and_then(Value::as_u64).unwrap_or(10);
     let mut params: Vec<(&str, String)> = vec![("limit", limit.to_string())];
 
@@ -211,8 +230,9 @@ async fn cmd_list_payments(client: &reqwest::Client, secret_key: &str, input: &V
         }
     }
 
+    let url = format!("{base_url}/payment_intents");
     let resp = client
-        .get("https://api.stripe.com/v1/payment_intents")
+        .get(&url)
         .basic_auth(secret_key, Some(""))
         .query(&params)
         .send()
@@ -242,7 +262,12 @@ async fn cmd_list_payments(client: &reqwest::Client, secret_key: &str, input: &V
     println!("{output}");
 }
 
-async fn cmd_create_payment(client: &reqwest::Client, secret_key: &str, input: &Value) {
+async fn cmd_create_payment(
+    client: &reqwest::Client,
+    secret_key: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let amount = input.get("amount").and_then(Value::as_i64).unwrap_or(-1);
     if amount <= 0 {
         fail(
@@ -267,8 +292,9 @@ async fn cmd_create_payment(client: &reqwest::Client, secret_key: &str, input: &
         }
     }
 
+    let url = format!("{base_url}/payment_intents");
     let resp = client
-        .post("https://api.stripe.com/v1/payment_intents")
+        .post(&url)
         .basic_auth(secret_key, Some(""))
         .form(&params)
         .send()
@@ -297,7 +323,12 @@ async fn cmd_create_payment(client: &reqwest::Client, secret_key: &str, input: &
     println!("{output}");
 }
 
-async fn cmd_retrieve_payment(client: &reqwest::Client, secret_key: &str, input: &Value) {
+async fn cmd_retrieve_payment(
+    client: &reqwest::Client,
+    secret_key: &str,
+    base_url: &str,
+    input: &Value,
+) {
     let payment_id = input["payment_id"].as_str().unwrap_or("");
     if payment_id.is_empty() {
         fail(
@@ -306,7 +337,7 @@ async fn cmd_retrieve_payment(client: &reqwest::Client, secret_key: &str, input:
         );
     }
 
-    let url = format!("https://api.stripe.com/v1/payment_intents/{payment_id}");
+    let url = format!("{base_url}/payment_intents/{payment_id}");
 
     let resp = client
         .get(&url)
@@ -338,6 +369,8 @@ async fn cmd_retrieve_payment(client: &reqwest::Client, secret_key: &str, input:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -371,5 +404,96 @@ mod tests {
         assert!(stdout.contains("na-stripe"));
         assert!(stdout.contains("stripe_secret_key"));
         assert!(stdout.contains("api_key"));
+    }
+
+    // ── Mock HTTP tests ─────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_list_customers_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/customers"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [{"id": "cus_1", "email": "a@b.com"}, {"id": "cus_2", "email": "c@d.com"}],
+                "has_more": false
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"limit": 2});
+        cmd_list_customers(&client, "sk_test", &mock_server.uri(), &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_customer_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/customers"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "cus_new",
+                "email": "test@example.com",
+                "name": "Test User"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"email": "test@example.com", "name": "Test User"});
+        cmd_create_customer(&client, "sk_test", &mock_server.uri(), &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_list_payments_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/payment_intents"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "data": [{"id": "pi_1", "amount": 2000, "status": "succeeded"}],
+                "has_more": false
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"limit": 1});
+        cmd_list_payments(&client, "sk_test", &mock_server.uri(), &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_payment_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/payment_intents"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "pi_new",
+                "amount": 5000,
+                "currency": "usd",
+                "status": "succeeded"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"amount": 5000, "currency": "usd"});
+        cmd_create_payment(&client, "sk_test", &mock_server.uri(), &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_payment_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/payment_intents/pi_abc"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "pi_abc",
+                "amount": 1500,
+                "status": "succeeded"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"payment_id": "pi_abc"});
+        cmd_retrieve_payment(&client, "sk_test", &mock_server.uri(), &input).await;
     }
 }
