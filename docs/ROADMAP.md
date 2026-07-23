@@ -742,3 +742,133 @@ With all foundational phases complete, the focus shifts from building capabiliti
 - Integration wave 2: additional third-party nodes driven by user demand
 - Hosted/cloud offering if signaled
 - Node registry enhancements: per-node tarballs, version pinning, dependency resolution
+
+---
+
+## Phase 15: Rustidiom — Technical Debt & Idiomatic Refactoring
+
+**Problem:** The codebase works well but accumulated structural debt during rapid feature development: monolithic files, `unwrap()` in production paths, duplicated date logic, inconsistent error handling, and missing documentation.
+
+**Target:**
+- Split orchestrator `main.rs` into focused modules
+- Eliminate `unwrap()` from production (non-test) code paths
+- Deduplicate date formatting into a shared utility
+- Add `thiserror` custom error types in the orchestrator
+- Standardize tokio runtime initialization across node crates
+- Document all public API surfaces
+- Fix S3 `cmd_list` stub
+
+**Effort:** 3-4 weeks (can be parallelised across contributors).
+
+**Note:** Workstreams are independent — they can be picked up in any order, by different people in parallel.
+
+### 15.1 Module Split: Orchestrator `main.rs` → Focused Crates
+
+Break `3775-line main.rs` into domain modules under `crates/na-orchestrator/src/`.
+
+**Tasks:**
+- `cli.rs` — all clap derive structs and arg definitions
+- `flow.rs` — `FlowSpec`, `NodeSpec`, `WireSpec`, serde types, `validate()`, `interpolate_str()`
+- `executor.rs` — DAG execution engine: topological sort, node lifecycle (run/step/retry), cycle detection (`Color` enum), bounded concurrency
+- `api.rs` — all REST handlers: CRUD flows, run/step, history, skills, oauth, registry
+- `ws.rs` — WebSocket handler, broadcast channel, event dispatch
+- `state.rs` — `StateStore`, atomic checkpoint/resume
+- `vault.rs` — vault resolution, `resolve_vault_uri()`, secret injection
+- `history.rs` — SQLite schema, run/node record CRUD
+- `oauth.rs` — `PendingOAuth`, provider redirect, token exchange
+- `registry.rs` — search, install, `RegistryEntry`
+
+**Effort:** 4-5 days.
+
+### 15.2 Eliminate Production `unwrap()` Calls
+
+Replace every `.unwrap()` and `.expect()` in non-test code with proper error propagation.
+
+**High-value targets:**
+- `na-orchestrator/src/main.rs:38,47` — Prometheus `register_int_counter_vec!()` → handle duplicate registration (return `Result` or use `OnceCell`)
+- `na-orchestrator/src/main.rs:220` — `encoder.encode()` → propagate via `anyhow::Context`
+- `na-http/src/main.rs:53-54,68` — tokio runtime & reqwest client builder → `?` with context
+- `na-vault/src/main.rs:361,367,376,382` — `serde_json::to_string_pretty()` in commands → `?` with context
+- `na-parquet/src/main.rs:156-177` — 15× `as_number().unwrap()` in type conversion → match with explicit error
+
+**Pattern:** `foo.unwrap()` → `foo.context("...")?` or `foo.with_context(|| format!("..."))?` for orchestrator; `foo.unwrap_or_else(|e| fail(1, e))` for node crates.
+
+**Effort:** 2-3 days.
+
+### 15.3 Deduplicate Date Formatting
+
+Three copies of manual leap-year / ISO-8601 date arithmetic exist:
+- `na-orchestrator/src/main.rs:2902-2947` (`chrono_now()`)
+- `na-vault/src/main.rs:201-251` (`chrono_now()`)
+- `na-s3/src/main.rs:181-220` (`s3_date()`)
+
+**Tasks:**
+- Add `chrono` (already a transitive dep) to `na-contract/Cargo.toml`
+- Add `pub fn now_iso8601() -> String` and `pub fn format_date_iso8601(dt: DateTime<Utc>) -> String` to `na-contract/src/lib.rs`
+- Replace all three manual implementations with calls to the shared function
+- Remove ~150 lines of duplicated code
+
+**Effort:** 1 day.
+
+### 15.4 Add `thiserror` & Custom Error Types
+
+`anyhow` is used only in the orchestrator. No crate defines custom error enums.
+
+**Tasks:**
+- Add `thiserror` to `na-orchestrator/Cargo.toml`
+- Define `pub enum FlowError` with variants: `CycleDetected`, `NodeNotFound`, `NodeFailed`, `ValidationError`, `VaultError`, `SchemaError`, `StateError`
+- Implement `Display` and `Error` (via derive)
+- Update `executor.rs` and `api.rs` to return `Result<T, FlowError>` where callers need to match on error type
+- For node crates: keep `fail()` exit model but wrap common patterns (serialization, I/O) in `FnOnce` helpers
+
+**Effort:** 1-2 days.
+
+### 15.5 Standardize Tokio Runtime Initialization
+
+Three different patterns exist:
+1. `#[tokio::main]` (orchestrator)
+2. Manual builder with `enable_all()` (http, s3, slack, db-postgres, etc.)
+3. No async at all (echo, json, file, yaml, xml, etc.)
+
+**Tasks:**
+- For sync-only crates: no change needed (they use `fail()` + subprocess model correctly)
+- For async crates: add `tokio` with minimal features to each `Cargo.toml`, add `#[tokio::main]`
+- Remove `enable_all()` — only enable features actually needed (e.g. `rt-multi-thread` + `macros`)
+- Remove `.build().unwrap()` during runtime creation
+
+**Effort:** 1 day.
+
+### 15.6 Document Public API Surfaces
+
+Node crates (json, file, yaml, xml, zip, csv, excel, etc.) have zero `///` doc comments.
+
+**Tasks:**
+- Add `///` doc comments to all `pub fn` in every node crate's `main.rs`:
+  - `manifest()` — what the node does, inputs, outputs
+  - `run()` — execution semantics, error conditions
+  - Each sub-command handler
+- Add `//!` crate-level docs where absent
+- Minimum bar: every function that appears in `--describe` output must have doc
+
+**Effort:** 2-3 days (rote work, good for onboarding).
+
+### 15.7 Fix S3 `cmd_list` Stub
+
+`na-s3/src/main.rs:456` fetches XML from S3 but discards it (`let _ = body_xml`) and returns `Vec::new()`.
+
+**Tasks:**
+- Add `quick-xml` or `serde-xml-rs` to `na-s3/Cargo.toml`
+- Parse `ListBucketResult` XML into a struct
+- Map to output schema: `{"objects": [...], "count": N}`
+- Add unit test with mock S3 response XML
+
+**Effort:** 1 day.
+
+### 15.8 Low-Impact Cleanup (Bonus)
+
+- `#[allow(dead_code)]` — add `reason` or prefix with `_` for `PendingOAuth.created_at` and `RegistryEntry.repo`
+- `na-json/src/main.rs:259` — replace hardcoded `../../target/debug/` with `cargo build` integration or `env!("CARGO_BIN_EXE_na-json")`
+- `server_smoke.rs:51` — replace `std::mem::forget(ui_dir)` with a scoped temp-dir guard type (`TempDir` pattern)
+- Enable `clippy::pedantic` at workspace level and triage warnings
+
+**Effort:** 2-3 days total, spread across other workstreams.
