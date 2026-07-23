@@ -28,7 +28,7 @@ with an n8n-class web UI.
 - ✅ Secret env var injection (`NGALIR_SECRET_*`)
 - ✅ Trigger nodes: webhook (HTTP server), schedule (cron daemon), email (SMTP)
 - ✅ Per-provider DB split (postgres / mysql / sqlite)
-- ✅ Web UI: Svelte 5 flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, snapshot comparison
+- ✅ Web UI: React flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, snapshot comparison
 - ✅ Canvas UX: wire management (click/delete), zoom & pan, auto-layout (dagre), undo/redo (50-step), keyboard shortcuts
 - ✅ Advanced canvas: multi-select & group operations (rubber-band, shift-click, group move/delete/duplicate), wire reconnection (drag endpoints to rewire), live port discovery (node manifests from `/api/skills`), sticky notes (editable text, colors, resize), native YAML import/export
 - ✅ Structured credential management: `CredentialSpec` in node manifests, typed credentials with dynamic UI forms, `--test-connection` mode
@@ -195,7 +195,7 @@ the system generates, visualizes, and runs the workflow.
 **Problem:** No visual interface for building or monitoring workflows.
 
 **Target:**
-- Standalone web app (Svelte 5 + Vite) served by `ngalir serve` (default :8080)
+- Standalone web app (React + Vite) served by `ngalir serve` (default :8080)
 - Graph editor: drag-and-drop nodes, connect inputs/outputs visually
 - Real-time flow execution view: node status (pending/running/done/failed), logs
 - Flow library: save, load, share flows
@@ -204,7 +204,7 @@ the system generates, visualizes, and runs the workflow.
 **Effort:** 2-3 weeks. ✅
 
 **Implemented:**
-- Svelte 5 + Vite + TypeScript + Tailwind CSS v4 scaffolded in `ui/`
+- React + Vite + TypeScript + Tailwind CSS v4 scaffolded in `ui/`
 - Flow editor: Toolbar, NodePalette, FlowCanvas, NodeBlock, PropertyPanel
 - Drag & drop nodes, selection, property editing, export/import flow JSON
 - Run / Step buttons with real-time status dots via WebSocket
@@ -268,7 +268,7 @@ running the full pipeline.
 - `screenToCanvas()` coordinate conversion for node dragging and wire creation at any zoom level
 - Dagre layout: `autoLayout()` computes left-to-right positions from wire topology; Layout button in toolbar
 - Undo/redo: `snapshot()` deep-copies nodes/wires; `pushUndo()` before each mutation; 50-entry stack with Ctrl+Z/Y or ↩/↪ buttons
-- Keyboard handler on `<svelte:window>` covers Delete, Escape, Ctrl+S, Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y
+- Keyboard handler on `window` (useEffect + keydown listener) covers Delete, Escape, Ctrl+S, Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y
 
 ---
 
@@ -615,9 +615,9 @@ matching n8n's ergonomics.
 - 30 integration tests
 
 ### 10.4 Web UI Credentials Page ✅
-- `CredentialsPage.svelte`: list, dynamic add form (dropdown → render fields), test, delete
-- `PropertyPanel.svelte`: credential dropdown for nodes with `CredentialSpec`
-- `Toolbar.svelte`: "Credentials" nav button
+- `CredentialsPage.tsx`: list, dynamic add form (dropdown → render fields), test, delete
+- `PropertyPanel.tsx`: credential dropdown for nodes with `CredentialSpec`
+- `Toolbar.tsx`: "Credentials" nav button
 - Page routing via `store.currentPage`
 
 **Effort:** 4-5 days. ✅
@@ -637,7 +637,7 @@ SQLite-backed execution persistence and OAuth2 authorization code flow.
 ### 11.2 History API & UI ✅
 - `GET /api/history` — last 100 runs, newest first
 - `GET /api/history/{flow_id}` — run detail with all node execution records
-- `HistoryPage.svelte`: list view (status, duration, timestamp) and detail view (per-node timing, errors)
+- `HistoryPage.tsx`: list view (status, duration, timestamp) and detail view (per-node timing, errors)
 - "History" nav button in Toolbar
 
 ### 11.3 OAuth Authorization Flow ✅

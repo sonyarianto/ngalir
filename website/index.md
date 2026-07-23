@@ -21,7 +21,7 @@ features:
   - title: Credential Vault
     details: Structured credential store with AES-256-GCM encryption, OAuth2 flow, and dynamic UI forms. Reference credentials as vault:// URIs in flows.
   - title: Web UI
-    details: Svelte 5 flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, and snapshot comparison.
+    details: React flow editor with drag-and-drop, real-time execution via WebSocket, step-through debugging, and snapshot comparison.
   - title: Production Ready
     details: Prometheus metrics, health endpoints, checkpoint/resume, Docker images, and shell completions. Built for unattended batch jobs.
   - title: AI-Native
