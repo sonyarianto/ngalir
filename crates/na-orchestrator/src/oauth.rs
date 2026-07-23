@@ -14,8 +14,7 @@ pub(crate) struct PendingOAuth {
     pub(crate) spec_id: String,
     pub(crate) spec_label: String,
     pub(crate) oauth_config: OAuthConfig,
-    #[allow(dead_code)]
-    pub(crate) created_at: std::time::Instant,
+    pub(crate) _created_at: std::time::Instant,
 }
 
 pub(crate) type OAuthStore = Arc<std::sync::RwLock<HashMap<String, PendingOAuth>>>;
@@ -74,7 +73,7 @@ pub(crate) async fn api_oauth_authorize(
         spec_id: spec_id.clone(),
         spec_label: label,
         oauth_config: oauth_config.clone(),
-        created_at: std::time::Instant::now(),
+        _created_at: std::time::Instant::now(),
     };
     if let Ok(mut store) = state.oauth_store.write() {
         store.insert(state_token.clone(), pending);

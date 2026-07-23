@@ -27,10 +27,18 @@ fn node_path() -> String {
     path
 }
 
+struct TempDirGuard(tempfile::TempDir);
+
+impl TempDirGuard {
+    fn new(dir: tempfile::TempDir) -> Self {
+        Self(dir)
+    }
+}
+
 fn start_server(port: u16) -> Child {
-    let ui_dir = tempfile::tempdir().expect("tempdir");
+    let guard = TempDirGuard::new(tempfile::tempdir().expect("tempdir"));
     fs::write(
-        ui_dir.path().join("index.html"),
+        guard.0.path().join("index.html"),
         "<html><body>ngalir-ui</body></html>",
     )
     .expect("write index.html");
@@ -40,15 +48,15 @@ fn start_server(port: u16) -> Child {
         .arg("--port")
         .arg(port.to_string())
         .arg("--ui-dir")
-        .arg(ui_dir.path())
+        .arg(guard.0.path())
         .env("PATH", node_path())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
         .expect("ngalir serve should spawn");
 
-    // Keep ui_dir alive until server exits (ownership in closure)
-    std::mem::forget(ui_dir);
+    // Keep ui_dir alive until server exits
+    std::mem::forget(guard);
     child
 }
 

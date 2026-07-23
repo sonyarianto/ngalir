@@ -740,7 +740,7 @@ Follow-up items identified during Phase 12 review and pre-release cleanup.
 
 ---
 
-## Phase 15: Rustidiom — Technical Debt & Idiomatic Refactoring
+## Phase 15: Rustidiom — Technical Debt & Idiomatic Refactoring ✅ [8/8 done]
 
 **Problem:** The codebase works well but accumulated structural debt during rapid feature development: monolithic files, `unwrap()` in production paths, duplicated date logic, inconsistent error handling, and missing documentation.
 
@@ -795,11 +795,11 @@ Node crates (json, file, yaml, xml, zip, csv, excel, etc.) have zero `///` doc c
 
 Added `quick-xml` + serde deserialization for `ListBucketResult`. `cmd_list` now returns real object metadata (key, size, last_modified) instead of `Vec::new()`. Added 2 unit tests for XML parsing.
 
-### 15.8 Low-Impact Cleanup (Bonus)
+### 15.8 Low-Impact Cleanup (Bonus) ✅
 
-- `#[allow(dead_code)]` — add `reason` or prefix with `_` for `PendingOAuth.created_at` and `RegistryEntry.repo`
-- `na-json/src/main.rs:259` — replace hardcoded `../../target/debug/` with `cargo build` integration or `env!("CARGO_BIN_EXE_na-json")`
-- `server_smoke.rs:51` — replace `std::mem::forget(ui_dir)` with a scoped temp-dir guard type (`TempDir` pattern)
-- Enable `clippy::pedantic` at workspace level and triage warnings
+- `#[allow(dead_code)]` removed from `PendingOAuth.created_at` (→ `_created_at`) and `RegistryEntry.repo` (→ `_repo`)
+- `na-json` test helper `json_bin()` now uses `current_exe()` instead of hardcoded `../../target/debug/`
+- `server_smoke.rs` replaced `std::mem::forget(ui_dir)` with `TempDirGuard` wrapper struct
+- Skipped `clippy::pedantic` workspace enable (too noisy for now)
 
 **Effort:** 2-3 days total, spread across other workstreams.

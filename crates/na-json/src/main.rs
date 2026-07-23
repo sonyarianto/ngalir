@@ -257,8 +257,10 @@ mod tests {
     use std::process::Command;
 
     fn json_bin() -> PathBuf {
-        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        p.push("../../target/debug/na-json");
+        let exe = std::env::current_exe().expect("current exe");
+        let dir = exe.parent().expect("exe parent");
+        let mut p = dir.parent().expect("deps parent").to_path_buf();
+        p.push("na-json");
         p
     }
 

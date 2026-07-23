@@ -13,8 +13,8 @@ pub(crate) struct RegistryEntry {
     pub(crate) description: String,
     #[serde(default)]
     pub(crate) use_cases: Vec<String>,
-    #[allow(dead_code)]
-    pub(crate) repo: String,
+    #[serde(default)]
+    pub(crate) _repo: String,
 }
 
 async fn fetch_registry() -> Result<Vec<RegistryEntry>> {
