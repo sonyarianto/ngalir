@@ -12,6 +12,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
 use na_contract::{is_leap, now_iso8601, Manifest, OAuthConfig};
 
+mod error;
 mod init_node;
 use prometheus::{register_int_counter_vec, Encoder, IntCounterVec, TextEncoder};
 use rhai::{Engine, Scope};
@@ -2208,7 +2209,7 @@ async fn execute_node(
         if bin.manifest.streaming {
             let stdout = child.stdout.take().context("child stdout")?;
             let reader = BufReader::new(stdout);
-            let stream = read_stream_output(reader).await?;
+            let stream: Vec<Value> = read_stream_output(reader).await?;
             // Read stderr
             let mut stderr = String::new();
             if let Some(stderr_pipe) = child.stderr.take() {
