@@ -109,7 +109,13 @@ fn cmd_read(path: Option<&str>, delimiter: u8, has_headers: bool) {
                         .collect();
                     Value::Array(vals)
                 };
-                println!("{}", serde_json::to_string(&row).unwrap());
+                println!(
+                    "{}",
+                    serde_json::to_string(&row).unwrap_or_else(|e| fail(
+                        exit_code::GENERIC,
+                        format!("serialize failed: {e}")
+                    ))
+                );
                 count += 1;
             }
             Err(e) => {

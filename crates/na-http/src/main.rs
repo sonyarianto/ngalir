@@ -61,7 +61,12 @@ async fn run() {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
-        .unwrap();
+        .unwrap_or_else(|e| {
+            fail(
+                exit_code::GENERIC,
+                format!("failed to build HTTP client: {e}"),
+            )
+        });
     let mut req = match method.as_str() {
         "POST" => client.post(url),
         "PUT" => client.put(url),

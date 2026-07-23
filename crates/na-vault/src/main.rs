@@ -163,7 +163,8 @@ fn save_vault(vf: &VaultFile) {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let json = serde_json::to_string_pretty(vf).expect("serialize vault");
+    let json = serde_json::to_string_pretty(vf)
+        .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("serialize vault failed: {e}")));
 
     let data = match encryption_key() {
         Some(key) => encrypt(json.as_bytes(), &key),
@@ -310,13 +311,18 @@ fn delete_credential(id: &str) -> bool {
 fn cmd_list() {
     println!(
         "{}",
-        serde_json::to_string_pretty(&list_credentials()).unwrap()
+        serde_json::to_string_pretty(&list_credentials())
+            .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("serialize failed: {e}")))
     );
 }
 
 fn cmd_get(id: &str) {
     match get_credential(id) {
-        Some(cred) => println!("{}", serde_json::to_string_pretty(&cred).unwrap()),
+        Some(cred) => println!(
+            "{}",
+            serde_json::to_string_pretty(&cred)
+                .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("serialize failed: {e}")))
+        ),
         None => fail(exit_code::GENERIC, format!("credential '{id}' not found")),
     }
 }
@@ -325,13 +331,21 @@ fn cmd_create() {
     let input = read_input();
     let cred = create_credential(&input);
     save_credential(&cred);
-    println!("{}", serde_json::to_string_pretty(&cred).unwrap());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&cred)
+            .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("serialize failed: {e}")))
+    );
 }
 
 fn cmd_update(id: &str) {
     let input = read_input();
     match update_credential(id, &input) {
-        Some(cred) => println!("{}", serde_json::to_string_pretty(&cred).unwrap()),
+        Some(cred) => println!(
+            "{}",
+            serde_json::to_string_pretty(&cred)
+                .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("serialize failed: {e}")))
+        ),
         None => fail(exit_code::GENERIC, format!("credential '{id}' not found")),
     }
 }

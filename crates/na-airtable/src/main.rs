@@ -95,7 +95,12 @@ async fn run() {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
-        .unwrap();
+        .unwrap_or_else(|e| {
+            fail(
+                exit_code::GENERIC,
+                format!("failed to build HTTP client: {e}"),
+            )
+        });
 
     let base_url = format!("https://api.airtable.com/v0/{}/{}", base_id, table_name);
 
@@ -116,7 +121,8 @@ fn build_headers(token: &str) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::AUTHORIZATION,
-        reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")).unwrap(),
+        reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
+            .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("invalid header: {e}"))),
     );
     headers
 }

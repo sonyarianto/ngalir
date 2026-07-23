@@ -117,7 +117,13 @@ fn cmd_read(input: &Value) {
         match result {
             Ok(row) => {
                 let json_row = row_to_json(&row, &col_names);
-                println!("{}", serde_json::to_string(&json_row).unwrap());
+                println!(
+                    "{}",
+                    serde_json::to_string(&json_row).unwrap_or_else(|e| fail(
+                        exit_code::GENERIC,
+                        format!("serialize failed: {e}")
+                    ))
+                );
                 row_count += 1;
             }
             Err(e) => {
@@ -131,7 +137,11 @@ fn cmd_read(input: &Value) {
             .iter()
             .map(|c| (c.clone(), Value::Null))
             .collect::<serde_json::Map<_, _>>();
-        println!("{}", serde_json::to_string(&Value::Object(empty)).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string(&Value::Object(empty))
+                .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("serialize failed: {e}")))
+        );
     }
 }
 
@@ -153,29 +163,29 @@ fn field_to_json(field: &Field) -> Value {
     match field {
         Field::Null => Value::Null,
         Field::Bool(b) => Value::Bool(*b),
-        Field::Byte(b) => Value::Number(serde_json::json!(b).as_number().unwrap().clone()),
-        Field::Short(s) => Value::Number(serde_json::json!(s).as_number().unwrap().clone()),
-        Field::Int(i) => Value::Number(serde_json::json!(i).as_number().unwrap().clone()),
-        Field::Long(l) => Value::Number(serde_json::json!(l).as_number().unwrap().clone()),
-        Field::UByte(b) => Value::Number(serde_json::json!(b).as_number().unwrap().clone()),
-        Field::UShort(s) => Value::Number(serde_json::json!(s).as_number().unwrap().clone()),
-        Field::UInt(i) => Value::Number(serde_json::json!(i).as_number().unwrap().clone()),
-        Field::ULong(l) => Value::Number(serde_json::json!(l).as_number().unwrap().clone()),
-        Field::Float(f) => Value::Number(serde_json::json!(f).as_number().unwrap().clone()),
-        Field::Double(d) => Value::Number(serde_json::json!(d).as_number().unwrap().clone()),
-        Field::Float16(h) => {
-            Value::Number(serde_json::json!(h.to_f32()).as_number().unwrap().clone())
+        Field::Byte(b) => Value::Number(serde_json::Number::from(*b)),
+        Field::Short(s) => Value::Number(serde_json::Number::from(*s)),
+        Field::Int(i) => Value::Number(serde_json::Number::from(*i)),
+        Field::Long(l) => Value::Number(serde_json::Number::from(*l)),
+        Field::UByte(b) => Value::Number(serde_json::Number::from(*b)),
+        Field::UShort(s) => Value::Number(serde_json::Number::from(*s)),
+        Field::UInt(i) => Value::Number(serde_json::Number::from(*i)),
+        Field::ULong(l) => Value::Number(serde_json::Number::from(*l)),
+        Field::Float(f) => Value::Number(
+            serde_json::Number::from_f64(*f as f64).unwrap_or(serde_json::Number::from(0)),
+        ),
+        Field::Double(d) => {
+            Value::Number(serde_json::Number::from_f64(*d).unwrap_or(serde_json::Number::from(0)))
         }
+        Field::Float16(h) => Value::Number(
+            serde_json::Number::from_f64(h.to_f32() as f64).unwrap_or(serde_json::Number::from(0)),
+        ),
         Field::Str(s) => Value::String(s.clone()),
         Field::Bytes(b) => Value::String(format!("{b:?}")),
         Field::Decimal(d) => Value::String(format!("{d:?}")),
-        Field::Date(i) => Value::Number(serde_json::json!(i).as_number().unwrap().clone()),
-        Field::TimestampMillis(ms) => {
-            Value::Number(serde_json::json!(ms).as_number().unwrap().clone())
-        }
-        Field::TimestampMicros(us) => {
-            Value::Number(serde_json::json!(us).as_number().unwrap().clone())
-        }
+        Field::Date(i) => Value::Number(serde_json::Number::from(*i)),
+        Field::TimestampMillis(ms) => Value::Number(serde_json::Number::from(*ms)),
+        Field::TimestampMicros(us) => Value::Number(serde_json::Number::from(*us)),
         Field::ListInternal(list) => {
             let arr: Vec<Value> = list.elements().iter().map(field_to_json).collect();
             Value::Array(arr)
