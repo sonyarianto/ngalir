@@ -50,7 +50,7 @@ or `ngalir skills` to get the full machine-readable registry (JSON).
 | `na-slack` | Slack messaging (post message, read channel history, OAuth2) |
 | `na-telegram` | Telegram bot (send message, get updates) |
 | `na-discord` | Discord messaging (webhook, bot token, read messages) |
-| `na-notion` | Notion API (query database, create/update pages, append blocks) |
+| `na-notion` | Notion API (query database, get page, create/update pages, append blocks) |
 | `na-stripe` | Stripe API (list/create customers, list/create/retrieve payments) |
 | `na-s3` | S3-compatible object storage (read/write/list/delete, AWS SigV4) |
 | `na-airtable` | Airtable (list/get/create/update/delete records) |

@@ -21,7 +21,7 @@ with an n8n-class web UI.
 - ✅ 200+ unit + integration tests across all crates
 - ✅ `ngalir generate` — AI flow generation from natural language prompts
 - ✅ `ngalir optimize` — AI flow optimization with cost estimation and retry suggestions
-- ✅ 20 na-* node binaries + ngalir orchestrator, all containerised: echo, file, http, jsonpath, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm, xml, yaml, parquet, fixedwidth, html
+- ✅ 30 na-* node binaries + ngalir orchestrator, all containerised: echo, file, json, jsonpath, http, vault, db-postgres, db-mysql, db-sqlite, webhook, schedule, email, csv, excel, google-sheets, llm, xml, yaml, parquet, fixedwidth, html, zip, slack, telegram, discord, notion, stripe, s3, airtable, twilio
 - ✅ Data Processing phases: CSV, Excel, Google Sheets, XML, YAML, Parquet, Fixed-Width, and HTML nodes complete
 - ✅ NDJSON streaming output for long-running nodes
 - ✅ Checkpoint / resume with atomic state files
