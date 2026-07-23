@@ -45,6 +45,16 @@ cargo build --release
 # Binaries are in target/release/ngalir and target/release/na-*
 ```
 
+### Web UI (local testing)
+
+```bash
+cd ui && npm run build && cd ..
+NGALIR_NODE_PATH=target/debug cargo run --bin ngalir -- serve --ui-dir ui/dist
+```
+
+Then open http://localhost:8080. The `--ui-dir` flag points to where `npm run build`
+outputs the Vite production bundle (`ui/dist/` by default).
+
 ## Concepts
 
 - **Flow Spec** — a YAML/JSON file describing a DAG of nodes. See `docs/flow-spec.md`.
