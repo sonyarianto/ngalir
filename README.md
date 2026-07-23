@@ -1,5 +1,9 @@
 # Ngalir
 
+[![CI](https://img.shields.io/github/actions/workflow/status/sonyarianto/ngalir/ci.yml?branch=main&label=CI&logo=github)](https://github.com/sonyarianto/ngalir/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/sonyarianto/ngalir?color=blue)](LICENSE)
+[![Sponsor](https://img.shields.io/github/sponsors/sonyarianto?label=Sponsor&logo=github)](https://github.com/sponsors/sonyarianto)
+
 **Flow automation engine, built in Rust.** Nodes are standalone CLI
 binaries (`na-*`); flows are declarative YAML DAGs executed by `ngalir`.
 Production-ready: containerised, observable via Prometheus, supports subflows,
