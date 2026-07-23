@@ -1,4 +1,4 @@
-use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
+use na_contract::{exit_code, fail, now_iso8601, print_manifest, read_input, Manifest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -199,55 +199,7 @@ fn migrate_legacy(map: serde_json::Map<String, Value>) -> VaultFile {
 }
 
 fn chrono_now() -> String {
-    // Simple UTC timestamp without chrono dependency
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let d = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = d.as_secs();
-    // Format as ISO 8601 (simplified)
-    let days = secs / 86400;
-    let time_secs = secs % 86400;
-    let hours = time_secs / 3600;
-    let mins = (time_secs % 3600) / 60;
-    let secs = time_secs % 60;
-
-    // Days since 1970-01-01
-    let mut y = 1970i64;
-    let mut d = days as i64;
-    loop {
-        let days_in_year = if is_leap(y) { 366 } else { 365 };
-        if d < days_in_year {
-            break;
-        }
-        d -= days_in_year;
-        y += 1;
-    }
-    let month_days = if is_leap(y) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut m = 0;
-    for (i, md) in month_days.iter().enumerate() {
-        if d < *md {
-            m = i + 1;
-            break;
-        }
-        d -= *md;
-    }
-    if m == 0 {
-        m = 12;
-    }
-    let day = d + 1;
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        y, m, day, hours, mins, secs
-    )
-}
-
-fn is_leap(y: i64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    now_iso8601()
 }
 
 fn generate_id() -> String {

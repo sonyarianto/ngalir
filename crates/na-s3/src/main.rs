@@ -1,6 +1,6 @@
 use na_contract::{
-    exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
-    Manifest,
+    date_stamp_iso8601, exit_code, fail, print_manifest, read_input, AuthType, CredentialField,
+    CredentialSpec, Manifest,
 };
 use serde_json::Value;
 
@@ -178,50 +178,8 @@ async fn run() {
     }
 }
 
-fn s3_date() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let d = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = d.as_secs();
-    let days = secs / 86400;
-    let mut y = 1970i64;
-    let mut d = days as i64;
-    loop {
-        let diy = if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 {
-            366
-        } else {
-            365
-        };
-        if d < diy {
-            break;
-        }
-        d -= diy;
-        y += 1;
-    }
-    let month_days = if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut m = 0u32;
-    let mut rem = d;
-    for (i, md) in month_days.iter().enumerate() {
-        if rem < *md {
-            m = (i + 1) as u32;
-            break;
-        }
-        rem -= md;
-    }
-    if m == 0 {
-        m = 12;
-    }
-    format!("{:04}{:02}{:02}T000000Z", y, m, rem + 1)
-}
-
 fn s3_date_stamp() -> String {
-    let d = s3_date();
-    d[..8].to_string()
+    date_stamp_iso8601()
 }
 
 fn sha256_hex(data: &[u8]) -> String {

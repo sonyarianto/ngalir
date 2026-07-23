@@ -1,4 +1,4 @@
-use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
+use na_contract::{exit_code, fail, is_leap, print_manifest, read_input, Manifest};
 use serde_json::Value;
 
 fn manifest() -> Manifest {
@@ -420,10 +420,6 @@ fn excel_datetime_to_iso(serial: f64) -> String {
         "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
         y, m, day, hours, minutes, seconds
     )
-}
-
-fn is_leap(y: i64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 }
 
 fn write_cell(worksheet: &mut rust_xlsxwriter::Worksheet, row: u32, col: u16, val: Option<&Value>) {
