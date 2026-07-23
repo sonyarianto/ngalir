@@ -65,6 +65,8 @@ Commands:
   validate   Validate without running          ngalir validate flow.yaml
   generate   Generate a flow from a prompt     ngalir generate "fetch API → email result"
   skills     List node skills registry (JSON)  ngalir skills | jq .
+  search     Search node registry              ngalir search slack
+  install    Install a node from registry      ngalir install slack
   init-node  Scaffold a new node crate         ngalir init-node
   completion Generate shell completions        ngalir completion bash
   help       Print help

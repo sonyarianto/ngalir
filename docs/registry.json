@@ -1,0 +1,363 @@
+[
+  {
+    "name": "na-airtable",
+    "version": "0.1.0",
+    "description": "Read, create, update, and delete Airtable records.",
+    "use_cases": [
+      "airtable",
+      "database",
+      "spreadsheet"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-csv",
+    "version": "0.1.0",
+    "description": "Read and write CSV files with configurable delimiter, headers, and encoding.",
+    "use_cases": [
+      "csv",
+      "etl",
+      "import",
+      "export"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-db",
+    "version": "0.1.0",
+    "description": "Execute SQL queries against PostgreSQL databases.",
+    "use_cases": [],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-db-mysql",
+    "version": "0.1.0",
+    "description": "Execute SQL queries against MySQL databases.",
+    "use_cases": [
+      "database",
+      "sql",
+      "mysql",
+      "query"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-db-postgres",
+    "version": "0.1.0",
+    "description": "Execute SQL queries against PostgreSQL databases.",
+    "use_cases": [
+      "database",
+      "sql",
+      "postgresql",
+      "query"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-db-sqlite",
+    "version": "0.1.0",
+    "description": "Execute SQL queries against SQLite databases.",
+    "use_cases": [
+      "database",
+      "sql",
+      "sqlite",
+      "query"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-discord",
+    "version": "0.1.0",
+    "description": "Send messages to Discord via webhook or bot token.",
+    "use_cases": [
+      "discord",
+      "chat",
+      "notification"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-echo",
+    "version": "0.1.0",
+    "description": "Echoes the input `message` field back as `echo`.",
+    "use_cases": [
+      "test",
+      "debug"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-email",
+    "version": "0.1.0",
+    "description": "Sends an email via SMTP.",
+    "use_cases": [
+      "email",
+      "notify",
+      "smtp"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-excel",
+    "version": "0.1.0",
+    "description": "Read and write Excel (.xlsx) files with sheet and range selection.",
+    "use_cases": [
+      "excel",
+      "xlsx",
+      "spreadsheet"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-file",
+    "version": "0.1.0",
+    "description": "Read from or write to local files.",
+    "use_cases": [
+      "file",
+      "io",
+      "storage"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-fixedwidth",
+    "version": "0.1.0",
+    "description": "Read and write fixed-width text files with configurable column definitions.",
+    "use_cases": [
+      "fixedwidth",
+      "legacy",
+      "mainframe",
+      "etl"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-google-sheets",
+    "version": "0.1.0",
+    "description": "Read from and append to Google Sheets using service account auth.",
+    "use_cases": [
+      "sheets",
+      "spreadsheet",
+      "google"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-html",
+    "version": "0.1.0",
+    "description": "Extract data from HTML documents using CSS selectors. Supports table extraction and arbitrary selector queries.",
+    "use_cases": [
+      "html",
+      "web-scraping",
+      "table-extraction",
+      "etl"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-http",
+    "version": "0.1.0",
+    "description": "Make HTTP requests (GET / POST / PUT / DELETE / PATCH).",
+    "use_cases": [
+      "http",
+      "api",
+      "webhook"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-jq",
+    "version": "0.1.0",
+    "description": "Extract a value from JSON via dot-path syntax (e.g. rows.0.name).",
+    "use_cases": [],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-json",
+    "version": "0.1.0",
+    "description": "Read, write, and transform JSON documents.",
+    "use_cases": [
+      "json",
+      "transform",
+      "etl",
+      "data"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-jsonpath",
+    "version": "0.1.0",
+    "description": "Extract / transform JSON via jq-compatible filters (.[] | {id, name}, .[0:5], etc.)",
+    "use_cases": [
+      "transform",
+      "filter",
+      "json",
+      "jq"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-llm",
+    "version": "0.1.0",
+    "description": "LLM chat completions via OpenAI / Anthropic compatible API.",
+    "use_cases": [
+      "ai",
+      "llm",
+      "chat",
+      "generation"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-notion",
+    "version": "0.1.0",
+    "description": "Query Notion databases, create/update pages, append blocks.",
+    "use_cases": [
+      "notion",
+      "database",
+      "wiki"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-parquet",
+    "version": "0.1.0",
+    "description": "Read Apache Parquet files. Streaming read emits one NDJSON row per line.",
+    "use_cases": [
+      "parquet",
+      "analytics",
+      "columnar",
+      "etl"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-s3",
+    "version": "0.1.0",
+    "description": "S3-compatible object storage: read, write, list, delete objects.",
+    "use_cases": [
+      "s3",
+      "storage",
+      "object",
+      "cloud"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-schedule",
+    "version": "0.1.0",
+    "description": "Cron-like timer that executes a flow on a schedule.",
+    "use_cases": [
+      "trigger",
+      "cron",
+      "schedule",
+      "timer"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-slack",
+    "version": "0.1.0",
+    "description": "Slack messaging node: post messages and read channel history.",
+    "use_cases": [
+      "slack",
+      "messaging",
+      "chat"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-stripe",
+    "version": "0.1.0",
+    "description": "Stripe API node: list, create, and manage payments and customers.",
+    "use_cases": [
+      "stripe",
+      "payment",
+      "billing"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-telegram",
+    "version": "0.1.0",
+    "description": "Telegram Bot node: send messages and get updates.",
+    "use_cases": [
+      "telegram",
+      "messaging",
+      "bot"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-twilio",
+    "version": "0.1.0",
+    "description": "Send SMS and WhatsApp messages via Twilio API.",
+    "use_cases": [
+      "twilio",
+      "sms",
+      "whatsapp",
+      "notification"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-vault",
+    "version": "0.1.0",
+    "description": "Structured credential store with at-rest encryption. Resolves vault:// refs, manages credential CRUD.",
+    "use_cases": [
+      "secret",
+      "credential",
+      "security",
+      "vault"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-webhook",
+    "version": "0.1.0",
+    "description": "HTTP server that executes a flow on each POST request.",
+    "use_cases": [
+      "trigger",
+      "http",
+      "webhook",
+      "server"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-xml",
+    "version": "0.1.0",
+    "description": "Parse XML documents into JSON or generate XML from JSON.",
+    "use_cases": [
+      "xml",
+      "etl",
+      "parse",
+      "serialize"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-yaml",
+    "version": "0.1.0",
+    "description": "Parse YAML documents into JSON and serialize JSON to YAML.",
+    "use_cases": [
+      "yaml",
+      "config",
+      "etl",
+      "serialize"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  },
+  {
+    "name": "na-zip",
+    "version": "0.1.0",
+    "description": "Compress and decompress archives (zip, gzip).",
+    "use_cases": [
+      "zip",
+      "archive",
+      "compress",
+      "etl"
+    ],
+    "repo": "https://github.com/sonyarianto/ngalir"
+  }
+]

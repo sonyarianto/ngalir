@@ -29,6 +29,8 @@ tempfile = "3.27.0"
 uuid = { version = "1", features = ["v4"] }
 dirs = "6"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+flate2 = "1"
+tar = "0.4"
 rusqlite = { version = "0.32", features = ["bundled"] }
 
 [dev-dependencies]

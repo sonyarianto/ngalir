@@ -22,7 +22,12 @@ fi
 if [ ${#missing_docs[@]} -gt 0 ]; then
   echo "Missing from docs/nodes/:"
   printf '  - %s\n' "${missing_docs[@]}"
-  echo "Run: scripts/generate-node-docs.sh target/debug"
+  echo "Run: make docs"
+  rc=1
+fi
+if [ ! -f "docs/registry.json" ]; then
+  echo "Missing: docs/registry.json"
+  echo "Run: make registry"
   rc=1
 fi
 exit $rc

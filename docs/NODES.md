@@ -1,11 +1,16 @@
 # Nodes
 
 Ngalir discovers nodes dynamically — any `na-<name>` binary on `PATH` or
-`NGALIR_NODE_PATH` is available. Run `ngalir nodes` to list what's installed
-or `ngalir skills` to get the full machine-readable registry (JSON).
+`NGALIR_NODE_PATH` is available. Run `ngalir nodes` to list what's installed,
+`ngalir search <keyword>` to search the remote registry, or `ngalir skills`
+to get the full machine-readable registry (JSON).
+
+`ngalir install <name>` downloads and installs a node binary from the latest
+GitHub release (e.g., `ngalir install slack` → `na-slack`).
 
 Detailed documentation for each node (inputs, outputs, secrets, credentials,
-use cases) is available in [nodes/](nodes/).
+use cases) is available in [nodes/](nodes/). The machine-readable registry
+manifest is at [registry.json](registry.json).
 
 ## Core
 
