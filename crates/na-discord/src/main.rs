@@ -4,6 +4,8 @@ use na_contract::{
 };
 use serde_json::Value;
 
+const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
+
 fn manifest() -> Manifest {
     Manifest {
         name: "na-discord".to_string(),
@@ -78,10 +80,22 @@ async fn run() {
         fail(exit_code::INVALID_INPUT, "missing 'action' field");
     }
 
+    let token = na_contract::read_secret("token").unwrap_or_else(|| {
+        fail(
+            exit_code::AUTH,
+            "missing bot token (set NGALIR_SECRET_TOKEN)",
+        );
+    });
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap();
+
     match action {
-        "send_webhook" => cmd_send_webhook(&input).await,
-        "send_bot" => cmd_send_bot(&input).await,
-        "get_messages" => cmd_get_messages(&input).await,
+        "send_webhook" => cmd_send_webhook(&client, &input).await,
+        "send_bot" => cmd_send_bot(&client, DISCORD_API_BASE, &token, &input).await,
+        "get_messages" => cmd_get_messages(&client, DISCORD_API_BASE, &token, &input).await,
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{}'", action),
@@ -89,7 +103,7 @@ async fn run() {
     }
 }
 
-async fn cmd_send_webhook(input: &Value) {
+async fn cmd_send_webhook(client: &reqwest::Client, input: &Value) {
     let webhook_url = input["webhook_url"].as_str().unwrap_or("");
     if webhook_url.is_empty() {
         fail(
@@ -113,7 +127,6 @@ async fn cmd_send_webhook(input: &Value) {
         payload["avatar_url"] = Value::String(avatar_url.to_string());
     }
 
-    let client = reqwest::Client::new();
     let resp = client
         .post(webhook_url)
         .json(&payload)
@@ -130,14 +143,7 @@ async fn cmd_send_webhook(input: &Value) {
     println!("{output}");
 }
 
-async fn cmd_send_bot(input: &Value) {
-    let token = match na_contract::read_secret("token") {
-        Some(t) => t,
-        None => fail(
-            exit_code::AUTH,
-            "missing bot token (set NGALIR_SECRET_TOKEN)",
-        ),
-    };
+async fn cmd_send_bot(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let channel_id = input["channel_id"].as_str().unwrap_or("");
     if channel_id.is_empty() {
         fail(
@@ -154,8 +160,7 @@ async fn cmd_send_bot(input: &Value) {
         "content": content,
     });
 
-    let url = format!("https://discord.com/api/v10/channels/{channel_id}/messages");
-    let client = reqwest::Client::new();
+    let url = format!("{base_url}/channels/{channel_id}/messages");
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bot {token}"))
@@ -185,14 +190,7 @@ async fn cmd_send_bot(input: &Value) {
     println!("{output}");
 }
 
-async fn cmd_get_messages(input: &Value) {
-    let token = match na_contract::read_secret("token") {
-        Some(t) => t,
-        None => fail(
-            exit_code::AUTH,
-            "missing bot token (set NGALIR_SECRET_TOKEN)",
-        ),
-    };
+async fn cmd_get_messages(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let channel_id = input["channel_id"].as_str().unwrap_or("");
     if channel_id.is_empty() {
         fail(
@@ -203,8 +201,7 @@ async fn cmd_get_messages(input: &Value) {
 
     let limit = input["limit"].as_u64().unwrap_or(50);
 
-    let url = format!("https://discord.com/api/v10/channels/{channel_id}/messages?limit={limit}");
-    let client = reqwest::Client::new();
+    let url = format!("{base_url}/channels/{channel_id}/messages?limit={limit}");
     let resp = client
         .get(&url)
         .header("Authorization", format!("Bot {token}"))
@@ -234,6 +231,8 @@ async fn cmd_get_messages(input: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -258,5 +257,38 @@ mod tests {
         assert!(output.status.success());
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.contains("na-discord"));
+    }
+
+    #[tokio::test]
+    async fn test_send_bot_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/channels/123/messages"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": "456"})),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"channel_id": "123", "content": "Hello"});
+        cmd_send_bot(&client, &mock_server.uri(), "test-token", &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_messages_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/channels/123/messages"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!([{"id": "1"}, {"id": "2"}])),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"channel_id": "123", "limit": 10});
+        cmd_get_messages(&client, &mock_server.uri(), "test-token", &input).await;
     }
 }

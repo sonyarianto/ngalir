@@ -4,6 +4,8 @@ use na_contract::{
 };
 use serde_json::Value;
 
+const TWILIO_API_BASE: &str = "https://api.twilio.com";
+
 fn manifest() -> Manifest {
     Manifest {
         name: "na-twilio".to_string(),
@@ -119,17 +121,38 @@ async fn run() {
         _ => to.to_string(),
     };
 
-    let url = format!("https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json");
-    let params = [
-        ("From", from_param.as_str()),
-        ("To", to_param.as_str()),
-        ("Body", body),
-    ];
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap();
 
-    let client = reqwest::Client::new();
+    cmd_send_message(
+        &client,
+        TWILIO_API_BASE,
+        &account_sid,
+        &auth_token,
+        &from_param,
+        &to_param,
+        body,
+    )
+    .await;
+}
+
+async fn cmd_send_message(
+    client: &reqwest::Client,
+    base_url: &str,
+    account_sid: &str,
+    auth_token: &str,
+    from: &str,
+    to: &str,
+    message_body: &str,
+) {
+    let url = format!("{base_url}/2010-04-01/Accounts/{account_sid}/Messages.json");
+    let params = [("From", from), ("To", to), ("Body", message_body)];
+
     let resp = client
         .post(&url)
-        .basic_auth(&account_sid, Some(&auth_token))
+        .basic_auth(account_sid, Some(auth_token))
         .form(&params)
         .send()
         .await
@@ -159,6 +182,8 @@ async fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -182,5 +207,55 @@ mod tests {
         assert!(output.status.success());
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.contains("na-twilio"));
+    }
+
+    #[tokio::test]
+    async fn test_send_sms_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/2010-04-01/Accounts/AC123/Messages.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sid": "SM123",
+                "status": "sent"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        cmd_send_message(
+            &client,
+            &mock_server.uri(),
+            "AC123",
+            "auth-token",
+            "+1234567890",
+            "+0987654321",
+            "Hello",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_send_whatsapp_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/2010-04-01/Accounts/AC456/Messages.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sid": "SM456",
+                "status": "sent"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        cmd_send_message(
+            &client,
+            &mock_server.uri(),
+            "AC456",
+            "auth-token",
+            "whatsapp:+1234567890",
+            "whatsapp:+0987654321",
+            "Hello from WhatsApp",
+        )
+        .await;
     }
 }

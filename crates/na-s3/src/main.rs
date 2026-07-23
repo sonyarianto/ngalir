@@ -120,11 +120,57 @@ async fn run() {
     let endpoint = endpoint.trim_end_matches('/');
     let region = input["region"].as_str().unwrap_or("us-east-1");
 
+    let client = reqwest::Client::new();
+
     match action {
-        "read" => cmd_read(endpoint, bucket, region, &access_key, &secret_key, &input).await,
-        "write" => cmd_write(endpoint, bucket, region, &access_key, &secret_key, &input).await,
-        "list" => cmd_list(endpoint, bucket, region, &access_key, &secret_key, &input).await,
-        "delete" => cmd_delete(endpoint, bucket, region, &access_key, &secret_key, &input).await,
+        "read" => {
+            cmd_read(
+                &client,
+                endpoint,
+                bucket,
+                region,
+                &access_key,
+                &secret_key,
+                &input,
+            )
+            .await
+        }
+        "write" => {
+            cmd_write(
+                &client,
+                endpoint,
+                bucket,
+                region,
+                &access_key,
+                &secret_key,
+                &input,
+            )
+            .await
+        }
+        "list" => {
+            cmd_list(
+                &client,
+                endpoint,
+                bucket,
+                region,
+                &access_key,
+                &secret_key,
+                &input,
+            )
+            .await
+        }
+        "delete" => {
+            cmd_delete(
+                &client,
+                endpoint,
+                bucket,
+                region,
+                &access_key,
+                &secret_key,
+                &input,
+            )
+            .await
+        }
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}'"),
@@ -235,6 +281,7 @@ fn s3_signature(
 }
 
 async fn cmd_read(
+    client: &reqwest::Client,
     endpoint: &str,
     bucket: &str,
     region: &str,
@@ -262,7 +309,6 @@ async fn cmd_read(
     );
     let url = format!("{endpoint}{uri}");
 
-    let client = reqwest::Client::new();
     let resp = client
         .get(&url)
         .header("Host", url_host(&url))
@@ -298,6 +344,7 @@ async fn cmd_read(
 }
 
 async fn cmd_write(
+    client: &reqwest::Client,
     endpoint: &str,
     bucket: &str,
     region: &str,
@@ -322,7 +369,6 @@ async fn cmd_write(
     let payload_hash = sha256_hex(body.as_bytes());
     let url = format!("{endpoint}{uri}");
 
-    let client = reqwest::Client::new();
     let resp = client
         .put(&url)
         .header("Host", url_host(&url))
@@ -360,6 +406,7 @@ async fn cmd_write(
 }
 
 async fn cmd_list(
+    client: &reqwest::Client,
     endpoint: &str,
     bucket: &str,
     region: &str,
@@ -383,7 +430,6 @@ async fn cmd_list(
         format!("{endpoint}{uri}?{query}")
     };
 
-    let client = reqwest::Client::new();
     let resp = client
         .get(&url)
         .header("Host", url_host(&url))
@@ -417,6 +463,7 @@ async fn cmd_list(
 }
 
 async fn cmd_delete(
+    client: &reqwest::Client,
     endpoint: &str,
     bucket: &str,
     region: &str,
@@ -433,7 +480,6 @@ async fn cmd_delete(
     let payload_hash = sha256_hex(b"");
     let url = format!("{endpoint}{uri}");
 
-    let client = reqwest::Client::new();
     let resp = client
         .delete(&url)
         .header("Host", url_host(&url))
@@ -472,6 +518,8 @@ fn url_host(url: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -508,5 +556,105 @@ mod tests {
             url_host("https://my-minio.local:9000/bucket"),
             "my-minio.local:9000"
         );
+    }
+
+    // ── Mock HTTP tests ─────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_read_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/mybucket/mykey"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/plain")
+                    .set_body_string("hello world"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"key": "mykey"});
+        cmd_read(
+            &client,
+            &mock_server.uri(),
+            "mybucket",
+            "us-east-1",
+            "AKID",
+            "secret",
+            &input,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_write_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("PUT"))
+            .and(path("/mybucket/mykey"))
+            .respond_with(ResponseTemplate::new(200).insert_header("etag", "\"abc123\""))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"key": "mykey", "body": "test content"});
+        cmd_write(
+            &client,
+            &mock_server.uri(),
+            "mybucket",
+            "us-east-1",
+            "AKID",
+            "secret",
+            &input,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/mybucket/mykey"))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"key": "mykey"});
+        cmd_delete(
+            &client,
+            &mock_server.uri(),
+            "mybucket",
+            "us-east-1",
+            "AKID",
+            "secret",
+            &input,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_list_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/mybucket"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"<?xml version="1.0"?><ListBucketResult><Contents><Key>file1</Key></Contents></ListBucketResult>"#,
+            ))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"prefix": ""});
+        cmd_list(
+            &client,
+            &mock_server.uri(),
+            "mybucket",
+            "us-east-1",
+            "AKID",
+            "secret",
+            &input,
+        )
+        .await;
     }
 }

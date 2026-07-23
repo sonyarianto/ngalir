@@ -4,6 +4,8 @@ use na_contract::{
 };
 use serde_json::Value;
 
+const NOTION_API_BASE: &str = "https://api.notion.com/v1";
+
 fn manifest() -> Manifest {
     Manifest {
         name: "na-notion".to_string(),
@@ -88,12 +90,17 @@ async fn run() {
         ),
     };
 
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap();
+
     match action {
-        "query_database" => cmd_query_database(&token, &input).await,
-        "get_page" => cmd_get_page(&token, &input).await,
-        "create_page" => cmd_create_page(&token, &input).await,
-        "update_page" => cmd_update_page(&token, &input).await,
-        "append_block" => cmd_append_block(&token, &input).await,
+        "query_database" => cmd_query_database(&client, NOTION_API_BASE, &token, &input).await,
+        "get_page" => cmd_get_page(&client, NOTION_API_BASE, &token, &input).await,
+        "create_page" => cmd_create_page(&client, NOTION_API_BASE, &token, &input).await,
+        "update_page" => cmd_update_page(&client, NOTION_API_BASE, &token, &input).await,
+        "append_block" => cmd_append_block(&client, NOTION_API_BASE, &token, &input).await,
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}'"),
@@ -118,8 +125,13 @@ fn notion_headers(token: &str) -> reqwest::header::HeaderMap {
     headers
 }
 
-async fn notion_post(url: &str, token: &str, body: &Value) -> Value {
-    let client = reqwest::Client::new();
+async fn notion_post(
+    client: &reqwest::Client,
+    _base_url: &str,
+    url: &str,
+    token: &str,
+    body: &Value,
+) -> Value {
     let resp = client
         .post(url)
         .headers(notion_headers(token))
@@ -144,8 +156,7 @@ async fn notion_post(url: &str, token: &str, body: &Value) -> Value {
     json
 }
 
-async fn notion_get(url: &str, token: &str) -> Value {
-    let client = reqwest::Client::new();
+async fn notion_get(client: &reqwest::Client, _base_url: &str, url: &str, token: &str) -> Value {
     let resp = client
         .get(url)
         .headers(notion_headers(token))
@@ -169,8 +180,13 @@ async fn notion_get(url: &str, token: &str) -> Value {
     json
 }
 
-async fn notion_patch(url: &str, token: &str, body: &Value) -> Value {
-    let client = reqwest::Client::new();
+async fn notion_patch(
+    client: &reqwest::Client,
+    _base_url: &str,
+    url: &str,
+    token: &str,
+    body: &Value,
+) -> Value {
     let resp = client
         .patch(url)
         .headers(notion_headers(token))
@@ -195,7 +211,7 @@ async fn notion_patch(url: &str, token: &str, body: &Value) -> Value {
     json
 }
 
-async fn cmd_query_database(token: &str, input: &Value) {
+async fn cmd_query_database(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let database_id = input["database_id"].as_str().unwrap_or("");
     if database_id.is_empty() {
         fail(
@@ -205,7 +221,7 @@ async fn cmd_query_database(token: &str, input: &Value) {
     }
     let page_size = input["page_size"].as_u64().unwrap_or(100);
 
-    let url = format!("https://api.notion.com/v1/databases/{database_id}/query");
+    let url = format!("{base_url}/databases/{database_id}/query");
     let mut body = serde_json::json!({"page_size": page_size});
     if let Some(filter) = input.get("filter") {
         body["filter"] = filter.clone();
@@ -214,7 +230,7 @@ async fn cmd_query_database(token: &str, input: &Value) {
         body["sorts"] = sorts.clone();
     }
 
-    let result = notion_post(&url, token, &body).await;
+    let result = notion_post(client, base_url, &url, token, &body).await;
     let results = result["results"].as_array().cloned().unwrap_or_default();
     let has_more = result["has_more"].as_bool().unwrap_or(false);
     let output = serde_json::json!({
@@ -225,18 +241,18 @@ async fn cmd_query_database(token: &str, input: &Value) {
     println!("{output}");
 }
 
-async fn cmd_get_page(token: &str, input: &Value) {
+async fn cmd_get_page(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let page_id = input["page_id"].as_str().unwrap_or("");
     if page_id.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'page_id' for get_page");
     }
-    let url = format!("https://api.notion.com/v1/pages/{page_id}");
-    let result = notion_get(&url, token).await;
+    let url = format!("{base_url}/pages/{page_id}");
+    let result = notion_get(client, base_url, &url, token).await;
     let output = serde_json::json!({"page": result});
     println!("{output}");
 }
 
-async fn cmd_create_page(token: &str, input: &Value) {
+async fn cmd_create_page(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let properties = input.get("properties").and_then(Value::as_object).cloned();
     let properties = match properties {
         Some(p) => p,
@@ -258,12 +274,13 @@ async fn cmd_create_page(token: &str, input: &Value) {
         body["children"] = children.clone();
     }
 
-    let result = notion_post("https://api.notion.com/v1/pages", token, &body).await;
+    let url = format!("{base_url}/pages");
+    let result = notion_post(client, base_url, &url, token, &body).await;
     let output = serde_json::json!({"page": result, "ok": true});
     println!("{output}");
 }
 
-async fn cmd_update_page(token: &str, input: &Value) {
+async fn cmd_update_page(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let page_id = input["page_id"].as_str().unwrap_or("");
     if page_id.is_empty() {
         fail(
@@ -280,14 +297,14 @@ async fn cmd_update_page(token: &str, input: &Value) {
         ),
     };
 
-    let url = format!("https://api.notion.com/v1/pages/{page_id}");
+    let url = format!("{base_url}/pages/{page_id}");
     let body = serde_json::json!({"properties": properties});
-    let result = notion_patch(&url, token, &body).await;
+    let result = notion_patch(client, base_url, &url, token, &body).await;
     let output = serde_json::json!({"page": result, "ok": true});
     println!("{output}");
 }
 
-async fn cmd_append_block(token: &str, input: &Value) {
+async fn cmd_append_block(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let block_id = input["page_id"].as_str().unwrap_or("");
     if block_id.is_empty() {
         fail(
@@ -304,9 +321,9 @@ async fn cmd_append_block(token: &str, input: &Value) {
         ),
     };
 
-    let url = format!("https://api.notion.com/v1/blocks/{block_id}/children");
+    let url = format!("{base_url}/blocks/{block_id}/children");
     let body = serde_json::json!({"children": children});
-    let _ = notion_patch(&url, token, &body).await;
+    let _ = notion_patch(client, base_url, &url, token, &body).await;
     let output = serde_json::json!({"ok": true});
     println!("{output}");
 }
@@ -314,6 +331,8 @@ async fn cmd_append_block(token: &str, input: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -336,5 +355,41 @@ mod tests {
         assert!(output.status.success());
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.contains("na-notion"));
+    }
+
+    #[tokio::test]
+    async fn test_query_database_success() {
+        let mock_server = MockServer::start().await;
+        let base_url = mock_server.uri();
+        Mock::given(method("POST"))
+            .and(path("/databases/db123/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "results": [{"id": "1"}, {"id": "2"}],
+                "has_more": false
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"database_id": "db123"});
+        cmd_query_database(&client, &base_url, "test-token", &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_page_success() {
+        let mock_server = MockServer::start().await;
+        let base_url = mock_server.uri();
+        Mock::given(method("GET"))
+            .and(path("/pages/page123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "page123",
+                "properties": {"title": "Test"}
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"page_id": "page123"});
+        cmd_get_page(&client, &base_url, "test-token", &input).await;
     }
 }

@@ -1,7 +1,7 @@
-//! Ngalir Telegram Bot node.
-
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::Value;
+
+const TELEGRAM_API_BASE: &str = "https://api.telegram.org";
 
 fn manifest() -> Manifest {
     Manifest {
@@ -94,8 +94,8 @@ async fn run() {
         .unwrap();
 
     match action {
-        "send_message" => send_message(&client, &token, &input, chat_id).await,
-        "get_updates" => get_updates(&client, &token, &input).await,
+        "send_message" => send_message(&client, &token, TELEGRAM_API_BASE, &input, chat_id).await,
+        "get_updates" => get_updates(&client, &token, TELEGRAM_API_BASE, &input).await,
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}'"),
@@ -103,7 +103,13 @@ async fn run() {
     }
 }
 
-async fn send_message(client: &reqwest::Client, token: &str, input: &Value, chat_id: &str) {
+async fn send_message(
+    client: &reqwest::Client,
+    token: &str,
+    base_url: &str,
+    input: &Value,
+    chat_id: &str,
+) {
     let text = input["text"].as_str().unwrap_or("");
     if text.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'text' for send_message");
@@ -117,7 +123,7 @@ async fn send_message(client: &reqwest::Client, token: &str, input: &Value, chat
         params.insert("parse_mode".into(), Value::String(parse_mode.to_string()));
     }
 
-    let url = format!("https://api.telegram.org/bot{token}/sendMessage");
+    let url = format!("{base_url}/bot{token}/sendMessage");
     let resp = client
         .post(&url)
         .json(&params)
@@ -152,7 +158,7 @@ async fn send_message(client: &reqwest::Client, token: &str, input: &Value, chat
     println!("{output}");
 }
 
-async fn get_updates(client: &reqwest::Client, token: &str, input: &Value) {
+async fn get_updates(client: &reqwest::Client, token: &str, base_url: &str, input: &Value) {
     let offset = input["offset"].as_i64();
     let limit = input["limit"].as_i64().unwrap_or(100);
 
@@ -163,7 +169,7 @@ async fn get_updates(client: &reqwest::Client, token: &str, input: &Value) {
         params.insert("offset".into(), Value::Number(off.into()));
     }
 
-    let url = format!("https://api.telegram.org/bot{token}/getUpdates");
+    let url = format!("{base_url}/bot{token}/getUpdates");
     let resp = client
         .post(&url)
         .json(&params)
@@ -201,6 +207,8 @@ async fn get_updates(client: &reqwest::Client, token: &str, input: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -219,5 +227,39 @@ mod tests {
         assert_eq!(m.credentials[0].fields.len(), 1);
         assert_eq!(m.credentials[0].fields[0].key, "bot_token");
         assert!(!m.idempotent);
+    }
+
+    #[tokio::test]
+    async fn test_send_message_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/sendMessage"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": {"message_id": 42}
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"text": "Hello"});
+        send_message(&client, "test-token", &mock_server.uri(), &input, "chat123").await;
+    }
+
+    #[tokio::test]
+    async fn test_get_updates_success() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/bottest-token/getUpdates"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "ok": true,
+                "result": [{"update_id": 1, "message": {"text": "Hi"}}]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"limit": 10});
+        get_updates(&client, "test-token", &mock_server.uri(), &input).await;
     }
 }

@@ -96,14 +96,19 @@ async fn run() {
         ),
     };
 
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .unwrap();
+
     let base_url = format!("https://api.airtable.com/v0/{}/{}", base_id, table_name);
 
     match action {
-        "list" => cmd_list(&base_url, &token, &input).await,
-        "get" => cmd_get(&base_url, &token, &input).await,
-        "create" => cmd_create(&base_url, &token, &input).await,
-        "update" => cmd_update(&base_url, &token, &input).await,
-        "delete" => cmd_delete(&base_url, &token, &input).await,
+        "list" => cmd_list(&client, &base_url, &token, &input).await,
+        "get" => cmd_get(&client, &base_url, &token, &input).await,
+        "create" => cmd_create(&client, &base_url, &token, &input).await,
+        "update" => cmd_update(&client, &base_url, &token, &input).await,
+        "delete" => cmd_delete(&client, &base_url, &token, &input).await,
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{}'", action),
@@ -120,7 +125,7 @@ fn build_headers(token: &str) -> reqwest::header::HeaderMap {
     headers
 }
 
-async fn cmd_list(base_url: &str, token: &str, input: &Value) {
+async fn cmd_list(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let max_records = input["max_records"].as_u64().unwrap_or(100);
     let mut url = format!("{base_url}?maxRecords={max_records}");
 
@@ -138,7 +143,6 @@ async fn cmd_list(base_url: &str, token: &str, input: &Value) {
         }
     }
 
-    let client = reqwest::Client::new();
     let resp = client
         .get(&url)
         .headers(build_headers(token))
@@ -166,7 +170,7 @@ async fn cmd_list(base_url: &str, token: &str, input: &Value) {
     println!("{output}");
 }
 
-async fn cmd_get(base_url: &str, token: &str, input: &Value) {
+async fn cmd_get(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
         fail(
@@ -176,7 +180,6 @@ async fn cmd_get(base_url: &str, token: &str, input: &Value) {
     }
 
     let url = format!("{base_url}/{record_id}");
-    let client = reqwest::Client::new();
     let resp = client
         .get(&url)
         .headers(build_headers(token))
@@ -198,7 +201,7 @@ async fn cmd_get(base_url: &str, token: &str, input: &Value) {
     println!("{}", body);
 }
 
-async fn cmd_create(base_url: &str, token: &str, input: &Value) {
+async fn cmd_create(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let fields = input.get("fields").and_then(Value::as_object).cloned();
     let fields = match fields {
         Some(f) => f,
@@ -213,7 +216,6 @@ async fn cmd_create(base_url: &str, token: &str, input: &Value) {
         "returnFieldsByFieldId": false,
     });
 
-    let client = reqwest::Client::new();
     let resp = client
         .post(base_url)
         .headers(build_headers(token))
@@ -236,7 +238,7 @@ async fn cmd_create(base_url: &str, token: &str, input: &Value) {
     println!("{}", body);
 }
 
-async fn cmd_update(base_url: &str, token: &str, input: &Value) {
+async fn cmd_update(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
         fail(
@@ -258,7 +260,6 @@ async fn cmd_update(base_url: &str, token: &str, input: &Value) {
         "fields": fields,
     });
 
-    let client = reqwest::Client::new();
     let resp = client
         .patch(&url)
         .headers(build_headers(token))
@@ -281,7 +282,7 @@ async fn cmd_update(base_url: &str, token: &str, input: &Value) {
     println!("{}", body);
 }
 
-async fn cmd_delete(base_url: &str, token: &str, input: &Value) {
+async fn cmd_delete(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
         fail(
@@ -291,7 +292,6 @@ async fn cmd_delete(base_url: &str, token: &str, input: &Value) {
     }
 
     let url = format!("{base_url}/{record_id}");
-    let client = reqwest::Client::new();
     let resp = client
         .delete(&url)
         .headers(build_headers(token))
@@ -335,6 +335,8 @@ fn urlencode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[test]
     fn test_manifest_structure() {
@@ -364,5 +366,40 @@ mod tests {
     fn test_urlencode() {
         assert_eq!(urlencode("hello world"), "hello%20world");
         assert_eq!(urlencode("foo/bar"), "foo%2Fbar");
+    }
+
+    #[tokio::test]
+    async fn test_list_success() {
+        let mock_server = MockServer::start().await;
+        let base_url = format!("{}/v0/app123/Table1", mock_server.uri());
+        Mock::given(method("GET"))
+            .and(path("/v0/app123/Table1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "records": [{"id": "rec1", "fields": {"Name": "Alice"}}]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"max_records": 10});
+        cmd_list(&client, &base_url, "test-token", &input).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_success() {
+        let mock_server = MockServer::start().await;
+        let base_url = format!("{}/v0/app123/Table1", mock_server.uri());
+        Mock::given(method("POST"))
+            .and(path("/v0/app123/Table1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "rec_new",
+                "fields": {"Name": "Bob"}
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let client = reqwest::Client::new();
+        let input = serde_json::json!({"fields": {"Name": "Bob"}});
+        cmd_create(&client, &base_url, "test-token", &input).await;
     }
 }
