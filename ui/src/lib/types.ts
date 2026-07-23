@@ -104,6 +104,24 @@ export interface Credential {
   updated_at: string
 }
 
+export interface HistoryRun {
+  flow_id: string
+  flow_name: string
+  status: string
+  started_at: string
+  duration_ms: number | null
+  node_count: number
+  error?: string
+}
+
+export interface HistoryNode {
+  node_id: string
+  node_type: string
+  status: string
+  duration_ms: number | null
+  error?: string
+}
+
 export const CATEGORIES = [
   { name: 'Core', nodes: ['echo', 'file', 'http', 'jsonpath', 'vault'] },
   { name: 'Database', nodes: ['db-postgres', 'db-mysql', 'db-sqlite'] },
