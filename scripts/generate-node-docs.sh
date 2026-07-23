@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
+# Generate docs/nodes/<name>.md from each crate's --describe output.
+# Only processes crates listed in workspace Cargo.toml (no stale binaries).
 set -euo pipefail
 
 BIN_DIR="${1:-target/debug}"
 OUT_DIR="docs/nodes"
+ROOT_CARGO="${2:-Cargo.toml}"
 
 mkdir -p "$OUT_DIR"
+
+# Read workspace member crates, filter to na-* (skip orchestrator, contract)
+mapfile -t CRATES < <(grep 'crates/na-' "$ROOT_CARGO" | sed 's/.*"crates\/\(.*\)".*/\1/' | grep -v -E '^(na-orchestrator|na-contract)$' || true)
 
 generate_doc() {
   local bin="$1"
@@ -162,9 +168,14 @@ else:
   echo "  generated $file"
 }
 
-echo "Generating node docs from $BIN_DIR..."
-for bin in "$BIN_DIR"/na-* "$BIN_DIR"/ngalir; do
-  [ -f "$bin" ] && [ -x "$bin" ] && generate_doc "$bin"
+echo "Generating node docs from workspace members..."
+for crate in "${CRATES[@]}"; do
+  bin="$BIN_DIR/$crate"
+  if [ -f "$bin" ] && [ -x "$bin" ]; then
+    generate_doc "$bin"
+  else
+    echo "  warning: $crate binary not found in $BIN_DIR (run 'cargo build' first)"
+  fi
 done
 
-echo "Done. See $OUT_DIR/"
+echo "Done. $(ls "$OUT_DIR"/*.md 2>/dev/null | wc -l) docs in $OUT_DIR/"

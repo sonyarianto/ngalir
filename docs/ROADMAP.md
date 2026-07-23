@@ -13,7 +13,7 @@ with an n8n-class web UI.
 - ✅ Node discovery via `PATH` / `NGALIR_NODE_PATH`
 - ✅ Pre-flight validation (required inputs, JSON Schema)
 - ✅ Vault secret resolution & env-var injection
-- ✅ CLI: `run` (with `--input`, `--state-dir`), `nodes`, `validate`, `generate`, `optimize`, `skills`, `serve`
+- ✅ CLI: `run` (with `--input`, `--state-dir`), `nodes`, `validate`, `generate`, `optimize`, `skills`, `serve`, `search`, `install`
 - ✅ Structured logging (tracing, JSON, stderr)
 - ✅ Cycle detection with DFS
 - ✅ Retry with exponential backoff
@@ -689,3 +689,56 @@ Tools and automation to make Ngalir easy to install, extend, and deploy.
 - OAuth provider setup guides (see README credential section)
 
 **Effort:** 5-7 days. ✅
+
+---
+
+## Phase 13: Release Polish & Node Registry ✅ (Complete)
+
+Follow-up items identified during Phase 12 review and pre-release cleanup.
+
+### 13.1 Wiremock Tests for All 8 Integration Nodes ✅
+- Refactored 6 remaining nodes (`na-discord`, `na-notion`, `na-s3`, `na-airtable`, `na-twilio`, `na-telegram`) to inject `client` + `base_url` params
+- Wiremock success tests added for all 8 integration nodes
+- Vault test race condition fixed (`#[serial]` + env save/restore)
+
+### 13.2 Release Automation ✅
+- `scripts/install.sh` one-liner installer (OS/arch detection, GitHub release download)
+- `Dockerfile` 3-stage build (Node UI → Rust → Debian slim)
+- CI bundles `install.sh` in release tarballs, aarch64 build matrix, ghcr.io push
+- Draft release mode for manual publish gate
+
+### 13.3 Per-Node Documentation ✅
+- `scripts/generate-node-docs.sh`: extracts `--describe` manifest from each `na-*` binary
+- `docs/nodes/na-*.md`: 30 pages with inputs, outputs, secrets, credentials, use cases
+- `docs/NODES.md` entries link to per-node pages
+- Pre-commit validation: cross-references docs against workspace `Cargo.toml` members (no phantom docs)
+
+### 13.4 Node Registry (`search` / `install`) ✅
+- `docs/registry.json`: machine-readable manifest of all 30 nodes
+- `ngalir search <keyword>`: queries registry (remote GitHub raw, fallback local), matches name/description/use_cases
+- `ngalir install <name>`: detects platform target, downloads latest GitHub release binary, installs to `NGALIR_INSTALL_DIR` or `~/.local/bin`
+- Pre-commit: verify registry.json exists + no phantom docs
+
+---
+
+## Phase 14: Dogfooding & Public Launch (Recommended)
+
+With all foundational phases complete, the focus shifts from building capabilities to validating real-world use.
+
+### 14.1 Dogfooding: Example End-to-End Flows
+- Build 2–3 real-world example flows in `examples/`:
+  - Stripe payment monitor → Slack notification
+  - Webhook form submission → Airtable → Telegram notification
+  - Scheduled ETL: CSV → PostgreSQL → email report
+- Each example includes `README.md` with setup steps, credential requirements, and expected output
+- Provides smoke test for end-to-end correctness and onboarding material for new users
+
+### 14.2 Public Launch
+- Publish release `v0.1.0` officially (publish draft in GitHub Releases)
+- Share on r/rust, Hacker News, automation community channels
+- Collect real feedback: which integrations are most requested, where users get stuck
+
+### 14.3 Ecosystem (Post-Launch — Deferred Until Feedback Arrives)
+- Integration wave 2: additional third-party nodes driven by user demand
+- Hosted/cloud offering if signaled
+- Node registry enhancements: per-node tarballs, version pinning, dependency resolution

@@ -23,13 +23,6 @@
     "repo": "https://github.com/sonyarianto/ngalir"
   },
   {
-    "name": "na-db",
-    "version": "0.1.0",
-    "description": "Execute SQL queries against PostgreSQL databases.",
-    "use_cases": [],
-    "repo": "https://github.com/sonyarianto/ngalir"
-  },
-  {
     "name": "na-db-mysql",
     "version": "0.1.0",
     "description": "Execute SQL queries against MySQL databases.",
@@ -163,13 +156,6 @@
       "api",
       "webhook"
     ],
-    "repo": "https://github.com/sonyarianto/ngalir"
-  },
-  {
-    "name": "na-jq",
-    "version": "0.1.0",
-    "description": "Extract a value from JSON via dot-path syntax (e.g. rows.0.name).",
-    "use_cases": [],
     "repo": "https://github.com/sonyarianto/ngalir"
   },
   {
