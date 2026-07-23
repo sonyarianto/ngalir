@@ -3,6 +3,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/sonyarianto/ngalir/ci.yml?branch=main&label=CI&logo=github)](https://github.com/sonyarianto/ngalir/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/sonyarianto/ngalir?color=blue)](LICENSE)
 [![Sponsor](https://img.shields.io/github/sponsors/sonyarianto?label=Sponsor&logo=github)](https://github.com/sponsors/sonyarianto)
+[![Website](https://img.shields.io/badge/website-ngalir.vercel.app-blue?logo=vercel)](https://ngalir.vercel.app)
 
 **Flow automation engine, built in Rust.** Nodes are standalone CLI
 binaries (`na-*`); flows are declarative YAML DAGs executed by `ngalir`.
@@ -225,6 +226,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Documentation
 
+- [Website](https://ngalir.vercel.app) — landing page, guides, node overview
 - [Architecture](docs/ARCHITECTURE.md)
 - [Node Contract](docs/node-contract.md)
 - [Flow Spec](docs/flow-spec.md)
