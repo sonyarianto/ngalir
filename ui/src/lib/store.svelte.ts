@@ -241,7 +241,7 @@ async function loadFlow(name: string) {
     inputs: n.inputs || {},
   }))
   notes = (flow.notes || []).map((nt: CanvasNote) => ({ ...nt, selected: false }))
-  wires = []
+  wires = reconstructWires(nodes)
   selectedIds = []
   selectedWireId = null
   selectedNoteId = null
@@ -489,11 +489,32 @@ function updateNote(id: string, props: Partial<CanvasNote>) {
   if (note) Object.assign(note, props)
 }
 
+function reconstructWires(nodesList: CanvasNode[]): Wire[] {
+  const result: Wire[] = []
+  for (const node of nodesList) {
+    if (node.inputs) {
+      for (const [portName, ref] of Object.entries(node.inputs)) {
+        const dot = ref.lastIndexOf('.')
+        if (dot !== -1) {
+          const fromNodeId = ref.slice(0, dot)
+          const fromPort = ref.slice(dot + 1)
+          result.push({
+            id: `${fromNodeId}-${fromPort}-${node.id}-${portName}`,
+            from: { nodeId: fromNodeId, port: fromPort, label: fromPort, type: 'output' },
+            to: { nodeId: node.id, port: portName, label: portName, type: 'input' },
+          })
+        }
+      }
+    }
+  }
+  return result
+}
+
 function exportFlow(): string {
   const flow: Record<string, unknown> = {
     version: 1,
     name: flowName,
-    nodes: nodes.map(({ id, use, with: w, inputs, when, on_error, exit }) => ({
+    nodes: nodes.map(({ id, use, with: w, inputs, when, on_error, exit, position }) => ({
       id,
       use,
       ...(w && Object.keys(w).length ? { with: w } : {}),
@@ -501,6 +522,7 @@ function exportFlow(): string {
       ...(when ? { when } : {}),
       ...(on_error ? { on_error } : {}),
       ...(exit ? { exit } : {}),
+      ...(position ? { position } : {}),
     })),
   }
   if (notes.length > 0) {
@@ -523,7 +545,7 @@ function importFlowText(text: string) {
       inputs: n.inputs || {},
     }))
     notes = (data.notes || []).map((nt: CanvasNote) => ({ ...nt, selected: false }))
-    wires = []
+    wires = reconstructWires(nodes)
     selectedIds = []
     selectedWireId = null
     selectedNoteId = null

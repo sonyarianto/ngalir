@@ -305,6 +305,7 @@ fn expand_subflows(nodes: &[NodeSpec], base_dir: &std::path::Path) -> Result<Vec
                 when: None,
                 on_error: None,
                 exit: false,
+                position: None,
             });
         }
 
@@ -1379,6 +1380,21 @@ struct FlowSpec {
     #[serde(default = "default_concurrency")]
     concurrency: usize,
     nodes: Vec<NodeSpec>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    notes: Vec<NoteSpec>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NoteSpec {
+    id: String,
+    text: String,
+    position: Position,
+    #[serde(default)]
+    width: f64,
+    #[serde(default)]
+    height: f64,
+    #[serde(default)]
+    color: String,
 }
 
 fn default_concurrency() -> usize {
@@ -1401,6 +1417,15 @@ struct NodeSpec {
     /// If true, this node is a subflow exit point (its output becomes the subflow's output).
     #[serde(default)]
     exit: bool,
+    /// UI canvas position (preserved across save/load for the visual editor).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    position: Option<Position>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Position {
+    x: f64,
+    y: f64,
 }
 
 fn parse_flow(path: &str) -> Result<FlowSpec> {
@@ -3454,6 +3479,7 @@ mod tests {
             when: None,
             on_error: None,
             exit: false,
+            position: None,
         };
         let input = build_input(&node, &outputs);
         assert_eq!(input["greeting"], json!("hi"));
@@ -3472,6 +3498,7 @@ mod tests {
             when: None,
             on_error: None,
             exit: false,
+            position: None,
         };
         let input = build_input(&node, &outputs);
         assert_eq!(input["value"], json!(42));
@@ -3490,6 +3517,7 @@ mod tests {
             when: None,
             on_error: None,
             exit: false,
+            position: None,
         };
         assert!(deps_satisfied(&node, &outputs));
     }
@@ -3506,6 +3534,7 @@ mod tests {
             when: None,
             on_error: None,
             exit: false,
+            position: None,
         };
         assert!(!deps_satisfied(&node, &outputs));
     }
@@ -3521,6 +3550,7 @@ mod tests {
             when: None,
             on_error: None,
             exit: false,
+            position: None,
         };
         assert!(deps_satisfied(&node, &outputs));
     }
@@ -3627,6 +3657,7 @@ mod tests {
             when: Some("{{ src.count > 5 }}".into()),
             on_error: None,
             exit: false,
+            position: None,
         };
         assert!(deps_satisfied(&node, &outputs));
     }
@@ -3642,6 +3673,7 @@ mod tests {
             when: Some("{{ src.count > 5 }}".into()),
             on_error: None,
             exit: false,
+            position: None,
         };
         assert!(!deps_satisfied(&node, &outputs));
     }
