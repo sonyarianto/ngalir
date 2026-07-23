@@ -791,17 +791,9 @@ Node crates (json, file, yaml, xml, zip, csv, excel, etc.) have zero `///` doc c
 
 **Effort:** 2-3 days (rote work, good for onboarding).
 
-### 15.7 Fix S3 `cmd_list` Stub
+### 15.7 Fix S3 `cmd_list` Stub ✅
 
-`na-s3/src/main.rs:456` fetches XML from S3 but discards it (`let _ = body_xml`) and returns `Vec::new()`.
-
-**Tasks:**
-- Add `quick-xml` or `serde-xml-rs` to `na-s3/Cargo.toml`
-- Parse `ListBucketResult` XML into a struct
-- Map to output schema: `{"objects": [...], "count": N}`
-- Add unit test with mock S3 response XML
-
-**Effort:** 1 day.
+Added `quick-xml` + serde deserialization for `ListBucketResult`. `cmd_list` now returns real object metadata (key, size, last_modified) instead of `Vec::new()`. Added 2 unit tests for XML parsing.
 
 ### 15.8 Low-Impact Cleanup (Bonus)
 

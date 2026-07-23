@@ -359,6 +359,22 @@ async fn cmd_write(
     println!("{output}");
 }
 
+#[derive(serde::Deserialize)]
+struct ListBucketResult {
+    #[serde(rename = "Contents", default)]
+    contents: Vec<Contents>,
+}
+
+#[derive(serde::Deserialize)]
+struct Contents {
+    #[serde(rename = "Key")]
+    key: String,
+    #[serde(rename = "Size", default)]
+    size: i64,
+    #[serde(rename = "LastModified", default)]
+    last_modified: String,
+}
+
 async fn cmd_list(
     client: &reqwest::Client,
     endpoint: &str,
@@ -407,11 +423,27 @@ async fn cmd_list(
     }
 
     let body_xml = resp.text().await.unwrap_or_default();
-    let _ = body_xml;
-    let objects: Vec<Value> = Vec::new();
+    let result: ListBucketResult = match quick_xml::de::from_str(&body_xml) {
+        Ok(r) => r,
+        Err(e) => fail(
+            exit_code::GENERIC,
+            format!("failed to parse S3 list response: {e}"),
+        ),
+    };
+    let objects: Vec<Value> = result
+        .contents
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "key": c.key,
+                "size": c.size,
+                "last_modified": c.last_modified,
+            })
+        })
+        .collect();
     let output = serde_json::json!({
         "objects": objects,
-        "count": 0,
+        "count": objects.len(),
     });
     println!("{output}");
 }
@@ -593,7 +625,11 @@ mod tests {
         Mock::given(method("GET"))
             .and(path("/mybucket"))
             .respond_with(ResponseTemplate::new(200).set_body_string(
-                r#"<?xml version="1.0"?><ListBucketResult><Contents><Key>file1</Key></Contents></ListBucketResult>"#,
+                r#"<?xml version="1.0"?>
+                <ListBucketResult>
+                    <Contents><Key>file1.txt</Key><Size>1024</Size><LastModified>2024-01-15T12:00:00Z</LastModified></Contents>
+                    <Contents><Key>file2.txt</Key><Size>2048</Size><LastModified>2024-01-15T13:00:00Z</LastModified></Contents>
+                </ListBucketResult>"#,
             ))
             .mount(&mock_server)
             .await;
@@ -610,5 +646,27 @@ mod tests {
             &input,
         )
         .await;
+    }
+
+    #[test]
+    fn test_parse_list_response() {
+        let xml = r#"<?xml version="1.0"?>
+            <ListBucketResult>
+                <Contents><Key>a.txt</Key><Size>100</Size><LastModified>2024-01-01T00:00:00Z</LastModified></Contents>
+                <Contents><Key>b.txt</Key><Size>200</Size><LastModified>2024-01-02T00:00:00Z</LastModified></Contents>
+            </ListBucketResult>"#;
+        let result: ListBucketResult = quick_xml::de::from_str(xml).unwrap();
+        assert_eq!(result.contents.len(), 2);
+        assert_eq!(result.contents[0].key, "a.txt");
+        assert_eq!(result.contents[0].size, 100);
+        assert_eq!(result.contents[1].key, "b.txt");
+        assert_eq!(result.contents[1].size, 200);
+    }
+
+    #[test]
+    fn test_parse_empty_list_response() {
+        let xml = r#"<?xml version="1.0"?><ListBucketResult></ListBucketResult>"#;
+        let result: ListBucketResult = quick_xml::de::from_str(xml).unwrap();
+        assert!(result.contents.is_empty());
     }
 }
