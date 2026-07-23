@@ -222,6 +222,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md).
 - [Architecture](docs/ARCHITECTURE.md)
 - [Node Contract](docs/node-contract.md)
 - [Flow Spec](docs/flow-spec.md)
+- [Node Reference](docs/NODES.md) — index with links to per-node docs in [docs/nodes/](docs/nodes/)
 - [Roadmap](docs/ROADMAP.md)
 
 ## License
