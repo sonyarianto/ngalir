@@ -1292,11 +1292,16 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    let rx = state.tx.subscribe();
+    let step_tx = state.step_tx.clone();
+    ws.on_upgrade(move |socket| handle_socket(socket, rx, step_tx))
 }
 
-async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    let mut rx = state.tx.subscribe();
+async fn handle_socket(
+    mut socket: WebSocket,
+    mut rx: broadcast::Receiver<FlowEvent>,
+    step_tx: broadcast::Sender<StepCommand>,
+) {
     let mut closed = false;
 
     loop {
@@ -1323,7 +1328,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         if let Ok(cmd) = serde_json::from_str::<StepCommand>(&text) {
-                            let _ = state.step_tx.send(cmd);
+                            let _ = step_tx.send(cmd);
                         }
                     }
                     Some(Ok(Message::Close(_))) | None => {

@@ -24,6 +24,7 @@ let panX = $state(0)
 let panY = $state(0)
 let zoom = $state(1)
 let skillsMap = $state<Record<string, NodeManifest>>({})
+let flowError = $state('')
 let currentPage = $state<'editor' | 'credentials' | 'history'>('editor')
 let credentials = $state<Credential[]>([])
 let credentialSpecs = $state<{ id: string; label: string; auth_type: string; manifest: NodeManifest }[]>([])
@@ -135,6 +136,7 @@ function connectWs(): Promise<void> {
         const n = nodes.find((n) => n.id === msg.node_id)
         if (n) n.status = 'done'
       } else if (msg.type === 'flow_started') {
+        flowError = ''
         for (const n of nodes) {
           n.status = 'pending'
           delete n.input
@@ -143,10 +145,15 @@ function connectWs(): Promise<void> {
         }
       } else if (msg.type === 'step_ready') {
         stepReady = true
-      } else if (msg.type === 'flow_completed' || msg.type === 'flow_failed') {
+      } else if (msg.type === 'flow_completed') {
         running = false
         stepReady = false
         stepMode = false
+      } else if (msg.type === 'flow_failed') {
+        running = false
+        stepReady = false
+        stepMode = false
+        if (msg.error) flowError = msg.error
       }
     } catch { /* ignore malformed */ }
   }
@@ -765,6 +772,7 @@ export function getStore() {
     get panY() { return panY },
     get zoom() { return zoom },
     get skillsMap() { return skillsMap },
+    get flowError() { return flowError },
     get currentPage() { return currentPage },
     get credentials() { return credentials },
     get credentialSpecs() { return credentialSpecs },

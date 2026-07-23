@@ -21,6 +21,11 @@
       toastMessage = store.oauthMessage
       store.oauthMessage = ''
     }
+    if (store.flowError) {
+      toastType = 'error'
+      toastMessage = store.flowError
+      store.flowError = ''
+    }
   })
 
   onMount(() => {
