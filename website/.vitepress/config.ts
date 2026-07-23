@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'Ngalir',
-  description: 'Flow automation engine, built in Rust',
+  description: 'Flow automation engine',
   cleanUrls: true,
 
   themeConfig: {

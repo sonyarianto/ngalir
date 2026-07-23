@@ -5,7 +5,7 @@
 [![Sponsor](https://img.shields.io/github/sponsors/sonyarianto?label=Sponsor&logo=github)](https://github.com/sponsors/sonyarianto)
 [![Website](https://img.shields.io/badge/website-ngalir.vercel.app-blue?logo=vercel)](https://ngalir.vercel.app)
 
-**Flow automation engine, built in Rust.** Nodes are standalone CLI
+**Flow automation engine.** Nodes are standalone CLI
 binaries (`na-*`); flows are declarative YAML DAGs executed by `ngalir`.
 Production-ready: containerised, observable via Prometheus, supports subflows,
 streaming, checkpoint/resume, and AI-powered workflow generation.

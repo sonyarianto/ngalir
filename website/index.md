@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Ngalir
-  text: Flow automation engine, built in Rust
+  text: Flow automation engine
   tagline: Declarative YAML DAGs. Standalone node binaries. Production-ready observability.
   actions:
     - theme: brand

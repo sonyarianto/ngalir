@@ -73,11 +73,7 @@ use tokio::process::Command;
 // ── CLI ────────────────────────────────────────────────────────────────────
 
 #[derive(Parser)]
-#[command(
-    name = "ngalir",
-    version,
-    about = "Flow automation engine, built in Rust"
-)]
+#[command(name = "ngalir", version, about = "Flow automation engine")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
