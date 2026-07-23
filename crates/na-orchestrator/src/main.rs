@@ -773,7 +773,7 @@ async fn cmd_serve(port: u16, ui_dir: &str) -> Result<()> {
     let assets = ServeDir::new(ui_dir).append_index_html_on_directories(true);
 
     let app = axum::Router::new()
-        .nest_service("/", assets)
+        .fallback_service(assets)
         .route("/api/nodes", axum::routing::get(api_nodes))
         .route("/api/skills", axum::routing::get(api_skills))
         .route("/api/health", axum::routing::get(|| async { "OK" }))
