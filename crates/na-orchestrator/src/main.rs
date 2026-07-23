@@ -1828,10 +1828,16 @@ async fn execute_flow(
             let sem = sem.clone();
             let node = n.clone();
             let node_id_for_event = n.id.clone();
-            let bin = node_bins
-                .get(&node.use_)
-                .cloned()
-                .with_context(|| format!("unknown node type '{}'", node.use_))?;
+            let bin = match node_bins.get(&node.use_).cloned() {
+                Some(b) => b,
+                None => {
+                    let err = format!("unknown node type '{}'", node.use_);
+                    if let Some(f) = on_event {
+                        f("node_failed", Some(&node.id), None, Some(&err));
+                    }
+                    bail!("{err}");
+                }
+            };
             let output_dir = output_dir_path.clone();
             handles.push(tokio::spawn(async move {
                 let result = run_node(&node, &bin, input, sem, &output_dir).await;

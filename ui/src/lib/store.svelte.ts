@@ -100,10 +100,13 @@ function selectNote(id: string | null) {
   for (const nt of notes) nt.selected = nt.id === id
 }
 
-function connectWs() {
-  if (ws?.readyState === WebSocket.OPEN) return
+function connectWs(): Promise<void> {
+  if (ws?.readyState === WebSocket.OPEN) return Promise.resolve()
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   ws = new WebSocket(`${proto}//${location.host}/ws`)
+  const opened = new Promise<void>((resolve) => {
+    ws!.onopen = () => resolve()
+  })
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data)
@@ -148,6 +151,7 @@ function connectWs() {
     } catch { /* ignore malformed */ }
   }
   ws.onclose = () => { ws = null }
+  return opened
 }
 
 async function runFlow() {
@@ -157,7 +161,7 @@ async function runFlow() {
   stepMode = false
   stepReady = false
   for (const n of nodes) n.status = 'pending'
-  connectWs()
+  await connectWs()
   try {
     const res = await fetch('/api/run', {
       method: 'POST',
@@ -179,7 +183,7 @@ async function runStepFlow() {
   stepMode = true
   stepReady = false
   for (const n of nodes) n.status = 'pending'
-  connectWs()
+  await connectWs()
   try {
     const res = await fetch('/api/run', {
       method: 'POST',
