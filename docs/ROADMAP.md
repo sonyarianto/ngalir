@@ -4,7 +4,7 @@
 
 Ngalir is a **production-ready low-code platform** suitable for unattended ETL pipelines,
 webhook-triggered workflows, scheduled batch jobs, and credential-aware API integrations
-with an n8n-class web UI.
+with a React web UI. **v0.1.1 released** — binaries, Docker image, and website live.
 
 **What works:**
 
@@ -721,22 +721,17 @@ Follow-up items identified during Phase 12 review and pre-release cleanup.
 
 ---
 
-## Phase 14: Dogfooding & Public Launch (Recommended)
+## Phase 14: Dogfooding & Public Launch ✅ (Complete)
 
-With all foundational phases complete, the focus shifts from building capabilities to validating real-world use.
+### 14.1 Dogfooding: Example End-to-End Flows (Deferred)
+- Stripe → Slack, webhook → Airtable → Telegram, CSV → PostgreSQL → email
+- Deferred until real user demand materialises
 
-### 14.1 Dogfooding: Example End-to-End Flows
-- Build 2–3 real-world example flows in `examples/`:
-  - Stripe payment monitor → Slack notification
-  - Webhook form submission → Airtable → Telegram notification
-  - Scheduled ETL: CSV → PostgreSQL → email report
-- Each example includes `README.md` with setup steps, credential requirements, and expected output
-- Provides smoke test for end-to-end correctness and onboarding material for new users
-
-### 14.2 Public Launch
-- Publish release `v0.1.0` officially (publish draft in GitHub Releases)
-- Share on r/rust, Hacker News, automation community channels
-- Collect real feedback: which integrations are most requested, where users get stuck
+### 14.2 Public Launch ✅
+- Tag `v0.1.1` cut from HEAD (mencakup React migration, WebSocket race fix, axum routing fix)
+- Release published on GitHub Releases with binaries (x86_64 + aarch64) + UI bundle
+- Docker image pushed to `ghcr.io`
+- Website live via Vercel (auto-deploy on push to main)
 
 ### 14.3 Ecosystem (Post-Launch — Deferred Until Feedback Arrives)
 - Integration wave 2: additional third-party nodes driven by user demand
