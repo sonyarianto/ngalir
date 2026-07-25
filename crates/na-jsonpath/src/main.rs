@@ -1,3 +1,7 @@
+//! Ngalir JSONPath node.
+//!
+//! Extract or transform JSON via jq-compatible filters.
+
 use na_contract::{print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
@@ -7,6 +11,7 @@ enum PathSegment<'a> {
     ArraySlice(Option<isize>, Option<isize>),
 }
 
+/// Return the capability manifest for `na-jsonpath`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-jsonpath".to_string(),
@@ -45,6 +50,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or apply the JSONPath filter.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -64,6 +70,7 @@ fn main() {
     println!("{}", serde_json::json!({"result": result}));
 }
 
+/// Evaluate a filter expression against JSON data.
 fn eval_filter(data: &Value, filter: &str) -> Value {
     let mut filter = filter.trim();
     if let Some(rest) = filter.strip_prefix('$') {
@@ -81,6 +88,7 @@ fn eval_filter(data: &Value, filter: &str) -> Value {
     current
 }
 
+/// Evaluate a single pipeline stage (dot-path, bracket, or object constructor).
 fn eval_stage(data: &Value, expr: &str) -> Value {
     let expr = expr.trim();
     if expr.is_empty() || expr == "." {
@@ -124,6 +132,7 @@ fn eval_stage(data: &Value, expr: &str) -> Value {
     resolve_path(data, expr)
 }
 
+/// Parse a `start:end` slice expression into optional bounds.
 fn parse_slice(s: &str) -> Option<(Option<isize>, Option<isize>)> {
     let s = s.trim();
     if s.is_empty() {
@@ -147,6 +156,7 @@ fn parse_slice(s: &str) -> Option<(Option<isize>, Option<isize>)> {
     None
 }
 
+/// Slice an array by optional start/end indices (supports negative indexing).
 fn slice_array(data: &Value, start: Option<isize>, end: Option<isize>) -> Value {
     match data {
         Value::Array(arr) => {
@@ -159,6 +169,7 @@ fn slice_array(data: &Value, start: Option<isize>, end: Option<isize>) -> Value 
     }
 }
 
+/// Parse a dot-separated path into segments (keys, array iter, array slice).
 fn parse_dot_path_segments(path: &str) -> Vec<PathSegment<'_>> {
     let mut segments = Vec::new();
     for part in path.split('.') {
@@ -186,6 +197,7 @@ fn parse_dot_path_segments(path: &str) -> Vec<PathSegment<'_>> {
     segments
 }
 
+/// Resolve a dot path against a JSON value, returning `Null` for missing keys.
 fn resolve_path(value: &Value, path: &str) -> Value {
     if path.is_empty() || path == "." {
         return value.clone();
@@ -215,6 +227,7 @@ fn resolve_path(value: &Value, path: &str) -> Value {
     current
 }
 
+/// Construct objects from a comma-separated field spec, optionally with rename expressions.
 fn construct_objects(data: &Value, fields_spec: &str) -> Value {
     let fields: Vec<&str> = fields_spec
         .split(',')
@@ -240,6 +253,7 @@ fn construct_objects(data: &Value, fields_spec: &str) -> Value {
     }
 }
 
+/// Build a single JSON object from key-expression pairs.
 fn build_object(data: &Value, keys: &[(&str, Option<&str>)]) -> Value {
     let mut map = serde_json::Map::new();
     for (key, val_expr) in keys {

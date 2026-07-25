@@ -1,3 +1,7 @@
+//! Ngalir Vault node.
+//!
+//! Structured credential store with at-rest encryption, CRUD, and `vault://` ref resolution.
+
 use na_contract::{exit_code, fail, now_iso8601, print_manifest, read_input, Manifest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -5,6 +9,7 @@ use std::path::PathBuf;
 
 // ── Manifest ─────────────────────────────────────────────────────────────────
 
+/// Return the capability manifest for `na-vault`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-vault".to_string(),
@@ -308,6 +313,7 @@ fn delete_credential(id: &str) -> bool {
     true
 }
 
+/// List all stored credentials.
 fn cmd_list() {
     println!(
         "{}",
@@ -316,6 +322,7 @@ fn cmd_list() {
     );
 }
 
+/// Retrieve and display a credential by id.
 fn cmd_get(id: &str) {
     match get_credential(id) {
         Some(cred) => println!(
@@ -327,6 +334,7 @@ fn cmd_get(id: &str) {
     }
 }
 
+/// Create a new credential from input and store it.
 fn cmd_create() {
     let input = read_input();
     let cred = create_credential(&input);
@@ -338,6 +346,7 @@ fn cmd_create() {
     );
 }
 
+/// Update an existing credential by id.
 fn cmd_update(id: &str) {
     let input = read_input();
     match update_credential(id, &input) {
@@ -350,6 +359,7 @@ fn cmd_update(id: &str) {
     }
 }
 
+/// Delete a credential by id.
 fn cmd_delete(id: &str) {
     if delete_credential(id) {
         println!("{}", serde_json::json!({"ok": true}));
@@ -358,6 +368,7 @@ fn cmd_delete(id: &str) {
     }
 }
 
+/// Resolve a `vault://` reference and print the secret.
 fn cmd_resolve() {
     let input = read_input();
     let ref_str = match input.get("ref").and_then(Value::as_str) {
@@ -398,6 +409,7 @@ fn cmd_resolve() {
 
 // ── CLI Dispatch ─────────────────────────────────────────────────────────────
 
+/// Entry point: dispatch `--describe`, `--version`, `--list`, `--get`, `--create`, `--update`, `--delete`, or resolve.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let flags: Vec<&str> = args.iter().map(|s| s.as_str()).skip(1).collect();

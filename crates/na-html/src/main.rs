@@ -1,7 +1,12 @@
+//! Ngalir HTML node.
+//!
+//! Extract data from HTML documents using CSS selectors.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use scraper::{Html, Selector};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-html`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-html".to_string(),
@@ -50,6 +55,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -132,6 +138,7 @@ fn fetch_url(url: &str) -> String {
     }
 }
 
+/// Extract data matching a CSS selector and emit NDJSON results.
 fn cmd_extract(input: &Value, html_str: &str) {
     let selector_str = input["selector"].as_str().unwrap_or_else(|| {
         fail(
@@ -177,6 +184,7 @@ fn cmd_extract(input: &Value, html_str: &str) {
     }
 }
 
+/// Extract HTML `<table>` elements and emit NDJSON rows.
 fn cmd_tables(input: &Value, html_str: &str) {
     let document = Html::parse_document(html_str);
     let table_selector = Selector::parse("table").unwrap();

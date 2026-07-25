@@ -1,6 +1,11 @@
+//! Ngalir Fixed-Width node.
+//!
+//! Read and write fixed-width text files with configurable column definitions.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-fixedwidth`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-fixedwidth".to_string(),
@@ -67,6 +72,7 @@ struct ColDef {
     width: usize,
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -90,6 +96,7 @@ fn main() {
     }
 }
 
+/// Parse column definitions from input into a vector of `ColDef`.
 fn parse_columns(input: &Value) -> Vec<ColDef> {
     let cols = match input.get("columns").and_then(Value::as_array) {
         Some(c) => c,
@@ -129,6 +136,7 @@ fn parse_columns(input: &Value) -> Vec<ColDef> {
     result
 }
 
+/// Read fixed-width text from input and emit JSON rows to stdout.
 fn cmd_read(input: &Value, cols: &[ColDef]) {
     let has_headers = input["has_headers"].as_bool().unwrap_or(false);
 
@@ -160,6 +168,7 @@ fn cmd_read(input: &Value, cols: &[ColDef]) {
     }
 }
 
+/// Extract a substring field from a line at the given start and width.
 fn extract_field(line: &str, start: usize, width: usize) -> String {
     line.chars()
         .skip(start)
@@ -169,6 +178,7 @@ fn extract_field(line: &str, start: usize, width: usize) -> String {
         .to_string()
 }
 
+/// Write JSON rows as fixed-width text to a file or stdout.
 fn cmd_write(input: &Value, cols: &[ColDef]) {
     let rows = match input.get("rows").and_then(Value::as_array) {
         Some(r) => r,
@@ -218,11 +228,13 @@ fn cmd_write(input: &Value, cols: &[ColDef]) {
     }
 }
 
+/// Pad or truncate a string to the given width for fixed-width output.
 fn pad_field(s: &str, width: usize) -> String {
     let trimmed: String = s.chars().take(width).collect();
     format!("{:<width$}", trimmed, width = width)
 }
 
+/// Convert a JSON value to a string for fixed-width output.
 fn value_to_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),

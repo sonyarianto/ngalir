@@ -1,3 +1,7 @@
+//! Ngalir Twilio node.
+//!
+//! Send SMS and WhatsApp messages via the Twilio API.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest,
@@ -6,6 +10,7 @@ use serde_json::Value;
 
 const TWILIO_API_BASE: &str = "https://api.twilio.com";
 
+/// Return the capability manifest for `na-twilio`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-twilio".to_string(),
@@ -64,6 +69,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -78,6 +84,7 @@ async fn main() {
     run().await;
 }
 
+/// Read input and dispatch to the requested action handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("send_sms");
@@ -137,6 +144,7 @@ async fn run() {
     );
 }
 
+/// Send an SMS or WhatsApp message via the Twilio API.
 async fn cmd_send_message(
     client: &reqwest::Client,
     base_url: &str,

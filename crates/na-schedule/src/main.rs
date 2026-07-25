@@ -1,3 +1,7 @@
+//! Ngalir Schedule node.
+//!
+//! Cron-like timer that executes a flow on a schedule.
+
 use axum::routing::get;
 use axum::Router;
 use chrono::Utc;
@@ -21,6 +25,7 @@ static SCHEDULE_TRIGGERS: LazyLock<IntCounterVec> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Return the capability manifest for `na-schedule`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-schedule".to_string(),
@@ -77,6 +82,7 @@ struct Cli {
     metrics_port: u16,
 }
 
+/// Prometheus metrics endpoint.
 async fn metrics_handler() -> String {
     let encoder = TextEncoder::new();
     let mut buffer = Vec::new();
@@ -84,11 +90,13 @@ async fn metrics_handler() -> String {
     String::from_utf8(buffer).unwrap_or_default()
 }
 
+/// Health check endpoint.
 async fn health_handler() -> &'static str {
     "OK"
 }
 
 #[tokio::main]
+/// Entry point: dispatch `--describe`, `--version`, or start the cron scheduler.
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {

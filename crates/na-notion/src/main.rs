@@ -1,3 +1,7 @@
+//! Ngalir Notion node.
+//!
+//! Query Notion databases, create/update pages, and append blocks.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest,
@@ -6,6 +10,7 @@ use serde_json::Value;
 
 const NOTION_API_BASE: &str = "https://api.notion.com/v1";
 
+/// Return the capability manifest for `na-notion`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-notion".to_string(),
@@ -57,6 +62,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -71,6 +77,7 @@ async fn main() {
     run().await;
 }
 
+/// Read input and dispatch to the requested action handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -119,6 +126,7 @@ async fn run() {
     }
 }
 
+/// Build Notion API authorization and version headers.
 fn notion_headers(token: &str) -> reqwest::header::HeaderMap {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
@@ -136,6 +144,7 @@ fn notion_headers(token: &str) -> reqwest::header::HeaderMap {
     headers
 }
 
+/// Send a POST request to the Notion API.
 async fn notion_post(
     client: &reqwest::Client,
     _base_url: &str,
@@ -167,6 +176,7 @@ async fn notion_post(
     json
 }
 
+/// Send a GET request to the Notion API.
 async fn notion_get(client: &reqwest::Client, _base_url: &str, url: &str, token: &str) -> Value {
     let resp = client
         .get(url)
@@ -191,6 +201,7 @@ async fn notion_get(client: &reqwest::Client, _base_url: &str, url: &str, token:
     json
 }
 
+/// Send a PATCH request to the Notion API.
 async fn notion_patch(
     client: &reqwest::Client,
     _base_url: &str,
@@ -222,6 +233,7 @@ async fn notion_patch(
     json
 }
 
+/// Query a Notion database with optional filters and sorts.
 async fn cmd_query_database(
     client: &reqwest::Client,
     base_url: &str,
@@ -257,6 +269,7 @@ async fn cmd_query_database(
     output
 }
 
+/// Retrieve a Notion page by ID.
 async fn cmd_get_page(
     client: &reqwest::Client,
     base_url: &str,
@@ -273,6 +286,7 @@ async fn cmd_get_page(
     output
 }
 
+/// Create a new Notion page with given properties and optional children.
 async fn cmd_create_page(
     client: &reqwest::Client,
     base_url: &str,
@@ -306,6 +320,7 @@ async fn cmd_create_page(
     output
 }
 
+/// Update a Notion page's properties.
 async fn cmd_update_page(
     client: &reqwest::Client,
     base_url: &str,
@@ -335,6 +350,7 @@ async fn cmd_update_page(
     output
 }
 
+/// Append children blocks to a Notion block or page.
 async fn cmd_append_block(
     client: &reqwest::Client,
     base_url: &str,

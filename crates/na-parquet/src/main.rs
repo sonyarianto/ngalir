@@ -1,9 +1,14 @@
+//! Ngalir Parquet node.
+//!
+//! Read Apache Parquet columnar files.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::record::{Field, Row};
 use serde_json::Value;
 use std::fs::File;
 
+/// Return the capability manifest for `na-parquet`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-parquet".to_string(),
@@ -46,6 +51,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -66,6 +72,7 @@ fn main() {
     }
 }
 
+/// Read a Parquet file and emit NDJSON rows.
 fn cmd_read(input: &Value) {
     let path = input["path"].as_str().unwrap_or_else(|| {
         fail(

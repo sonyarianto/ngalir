@@ -1,3 +1,7 @@
+//! Ngalir Webhook node.
+//!
+//! HTTP server that executes a flow on each POST request.
+
 use axum::{
     extract::State,
     http::StatusCode,
@@ -24,6 +28,7 @@ static FLOW_EXECUTIONS: LazyLock<IntCounterVec> = LazyLock::new(|| {
     .unwrap()
 });
 
+/// Return the capability manifest for `na-webhook`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-webhook".to_string(),
@@ -87,6 +92,7 @@ struct AppState {
 }
 
 #[tokio::main]
+/// Entry point: dispatch `--describe`, `--version`, or start the HTTP server.
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -144,10 +150,12 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+/// Health check endpoint.
 async fn health_handler() -> StatusCode {
     StatusCode::OK
 }
 
+/// Prometheus metrics endpoint.
 async fn metrics_handler() -> String {
     let encoder = TextEncoder::new();
     let mut buffer = Vec::new();
@@ -155,6 +163,7 @@ async fn metrics_handler() -> String {
     String::from_utf8(buffer).unwrap_or_default()
 }
 
+/// Handle an incoming webhook POST by executing the configured flow.
 async fn handle_webhook(
     State(state): State<Arc<AppState>>,
     body: Json<Value>,

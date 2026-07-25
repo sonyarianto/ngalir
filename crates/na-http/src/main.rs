@@ -1,8 +1,11 @@
-//! Ngalir HTTP client node.
+//! Ngalir HTTP node.
+//!
+//! Make HTTP requests (GET, POST, PUT, DELETE, PATCH) to external services.
 
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-http`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-http".to_string(),
@@ -37,6 +40,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -51,6 +55,7 @@ async fn main() {
     run().await;
 }
 
+/// Execute an HTTP request based on JSON input.
 async fn run() {
     let input = read_input();
     let url = input["url"].as_str().unwrap_or("");

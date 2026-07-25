@@ -1,3 +1,7 @@
+//! Ngalir Google Sheets node.
+//!
+//! Read from and append to Google Spreadsheets.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest,
@@ -5,6 +9,7 @@ use na_contract::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-google-sheets`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-google-sheets".to_string(),
@@ -106,6 +111,7 @@ struct SheetsAppendResponse {
     updated_rows: Option<u64>,
 }
 
+/// Entry point: dispatch `--describe`, `--version`, `--test-connection`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -173,6 +179,7 @@ async fn main() {
     }
 }
 
+/// Validate service account credentials by obtaining an access token.
 async fn test_connection(credentials_json: &str) {
     let result = get_access_token(credentials_json).await;
     match result {
@@ -282,6 +289,7 @@ async fn get_access_token(credentials_json: &str) -> Result<String, String> {
     Ok(token_resp.access_token)
 }
 
+/// Read a Google Sheet range and emit NDJSON rows.
 async fn cmd_read(sid: &str, range: &str, has_headers: bool, token: &str) {
     let url = format!(
         "https://sheets.googleapis.com/v4/spreadsheets/{}/values/{}",
@@ -336,6 +344,7 @@ async fn cmd_read(sid: &str, range: &str, has_headers: bool, token: &str) {
     }
 }
 
+/// Append rows to a Google Sheet.
 async fn cmd_append(sid: &str, range: &str, input: &Value, token: &str) {
     let rows = match input.get("rows").and_then(Value::as_array) {
         Some(r) => r,

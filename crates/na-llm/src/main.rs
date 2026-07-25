@@ -1,7 +1,12 @@
+//! Ngalir LLM node.
+//!
+//! Interact with large language model APIs (OpenAI, Anthropic, etc.).
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-llm`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-llm".to_string(),
@@ -104,6 +109,7 @@ struct Usage {
 }
 
 #[tokio::main]
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -138,6 +144,7 @@ async fn main() {
     cmd_chat(api_base, model, messages, temperature, max_tokens, &api_key).await;
 }
 
+/// Resolve the API key from the secret store or input field.
 fn resolve_api_key(input: &Value) -> String {
     if let Some(secret) = na_contract::read_secret("api_key") {
         return secret;
@@ -154,6 +161,7 @@ fn resolve_api_key(input: &Value) -> String {
         })
 }
 
+/// Build the messages array from input (`messages` array or `prompt` shortcut).
 fn build_messages(input: &Value) -> Vec<Message> {
     if let Some(msgs) = input["messages"].as_array() {
         if !msgs.is_empty() {
@@ -179,6 +187,7 @@ fn build_messages(input: &Value) -> Vec<Message> {
     vec![]
 }
 
+/// Send a chat completion request and print the response.
 async fn cmd_chat(
     api_base: &str,
     model: &str,

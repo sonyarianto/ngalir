@@ -1,6 +1,11 @@
+//! Ngalir Excel node.
+//!
+//! Read and write Excel (.xlsx) spreadsheets.
+
 use na_contract::{exit_code, fail, is_leap, print_manifest, read_input, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-excel`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-excel".to_string(),
@@ -38,6 +43,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -60,6 +66,7 @@ fn main() {
     }
 }
 
+/// Read an Excel file and emit NDJSON rows.
 fn cmd_read(path: Option<&str>, input: &Value) {
     let p = path.unwrap_or_else(|| {
         fail(
@@ -138,6 +145,7 @@ fn cmd_read(path: Option<&str>, input: &Value) {
     }
 }
 
+/// Write rows to an Excel file.
 fn cmd_write(path: Option<&str>, input: &Value) {
     let p = path.unwrap_or_else(|| {
         fail(

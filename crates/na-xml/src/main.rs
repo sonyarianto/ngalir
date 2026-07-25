@@ -1,8 +1,13 @@
+//! Ngalir XML node.
+//!
+//! Parse XML documents into JSON or generate XML from JSON.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde_json::Value;
 
+/// Return the capability manifest for `na-xml`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-xml".to_string(),
@@ -52,6 +57,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -73,6 +79,7 @@ fn main() {
     }
 }
 
+/// Parse XML input and print the resulting JSON.
 fn cmd_read(input: &Value) {
     let xml_str = input["xml"]
         .as_str()
@@ -101,6 +108,7 @@ fn cmd_read(input: &Value) {
     println!("{output}");
 }
 
+/// Convert an XML string into a JSON value.
 fn parse_xml_to_json(xml: &str) -> Value {
     let mut reader = Reader::from_str(xml);
     let mut buf = Vec::new();
@@ -188,6 +196,7 @@ fn parse_xml_to_json(xml: &str) -> Value {
     root.unwrap_or(Value::Null)
 }
 
+/// Insert a value into a parent map, creating arrays for duplicate keys.
 fn add_to_parent(parent: &mut serde_json::Map<String, Value>, key: &str, val: Value) {
     if let Some(existing) = parent.get_mut(key) {
         match existing {
@@ -205,6 +214,7 @@ fn add_to_parent(parent: &mut serde_json::Map<String, Value>, key: &str, val: Va
     }
 }
 
+/// Serialize JSON to XML and write to file or stdout.
 fn cmd_write(input: &Value) {
     let root_name = input["root_name"].as_str().unwrap_or("root");
     let item_name = input["item_name"].as_str().unwrap_or("item");
@@ -233,6 +243,7 @@ fn cmd_write(input: &Value) {
     }
 }
 
+/// Recursively convert a JSON value to an XML string.
 fn value_to_xml(val: &Value, elem_name: &str, item_name: &str, depth: usize) -> String {
     let indent = "  ".repeat(depth);
 
@@ -276,6 +287,7 @@ fn value_to_xml(val: &Value, elem_name: &str, item_name: &str, depth: usize) -> 
     }
 }
 
+/// Convert a JSON value to an XML attribute string.
 fn json_to_attr(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
@@ -285,6 +297,7 @@ fn json_to_attr(v: &Value) -> String {
     }
 }
 
+/// Convert a JSON value to an XML text node string.
 fn json_to_text(v: &Value) -> String {
     match v {
         Value::String(s) => escaped_xml(s),
@@ -295,6 +308,7 @@ fn json_to_text(v: &Value) -> String {
     }
 }
 
+/// Escape special XML characters in a string.
 fn escaped_xml(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")

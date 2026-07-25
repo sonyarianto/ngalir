@@ -1,8 +1,13 @@
+//! Ngalir Zip node.
+//!
+//! Compress and decompress archives (zip, gzip).
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 use std::io::{Read, Write};
 use std::path::Path;
 
+/// Return the capability manifest for `na-zip`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-zip".to_string(),
@@ -63,6 +68,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -89,6 +95,7 @@ fn main() {
     }
 }
 
+/// Compress files into an archive (zip or gzip).
 fn cmd_compress(input: &Value, format: &str) {
     let files = match input.get("files").and_then(Value::as_array) {
         Some(f) => f,
@@ -111,6 +118,7 @@ fn cmd_compress(input: &Value, format: &str) {
     }
 }
 
+/// Create a ZIP archive from the given file entries.
 fn compress_zip(files: &[Value], output_path: &str) {
     let file = std::fs::File::create(output_path)
         .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("create zip failed: {e}")));
@@ -167,6 +175,7 @@ fn compress_zip(files: &[Value], output_path: &str) {
     println!("{output}");
 }
 
+/// Create a GZIP archive from a single input file.
 fn compress_gzip(files: &[Value], output_path: &str) {
     if files.len() != 1 {
         fail(
@@ -211,6 +220,7 @@ fn compress_gzip(files: &[Value], output_path: &str) {
     println!("{output}");
 }
 
+/// Decompress an archive (zip or gzip).
 fn cmd_decompress(input: &Value, format: &str) {
     let path = input["path"].as_str().unwrap_or_else(|| {
         fail(
@@ -237,6 +247,7 @@ fn cmd_decompress(input: &Value, format: &str) {
     }
 }
 
+/// Extract all entries from a ZIP archive.
 fn decompress_zip(path: &str, output_dir: &str) {
     let file = std::fs::File::open(path)
         .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("open '{path}' failed: {e}")));
@@ -292,6 +303,7 @@ fn decompress_zip(path: &str, output_dir: &str) {
     println!("{output}");
 }
 
+/// Decompress a GZIP archive into a single output file.
 fn decompress_gzip(path: &str, output_dir: &str) {
     let file = std::fs::File::open(path)
         .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("open '{path}' failed: {e}")));
@@ -327,6 +339,7 @@ fn decompress_gzip(path: &str, output_dir: &str) {
     println!("{output}");
 }
 
+/// List entries in an archive (zip or gzip).
 fn cmd_list(input: &Value, format: &str) {
     let path = input["path"]
         .as_str()
@@ -343,6 +356,7 @@ fn cmd_list(input: &Value, format: &str) {
     }
 }
 
+/// List all entries in a ZIP archive.
 fn list_zip(path: &str) {
     let file = std::fs::File::open(path)
         .unwrap_or_else(|e| fail(exit_code::GENERIC, format!("open '{path}' failed: {e}")));

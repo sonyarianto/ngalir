@@ -1,3 +1,7 @@
+//! Ngalir Slack node.
+//!
+//! Post messages and read channel history in Slack.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest, OAuthConfig,
@@ -6,6 +10,7 @@ use serde_json::Value;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
+/// Return the capability manifest for `na-slack`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-slack".to_string(),
@@ -58,6 +63,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -72,6 +78,7 @@ async fn main() {
     run().await;
 }
 
+/// Dispatch the requested action to the matching command handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -108,6 +115,7 @@ async fn run() {
     }
 }
 
+/// Post a text message to a Slack channel.
 async fn cmd_post_message(
     client: &reqwest::Client,
     token: &str,
@@ -153,6 +161,7 @@ async fn cmd_post_message(
     output
 }
 
+/// Read recent message history from a Slack channel.
 async fn cmd_read_history(
     client: &reqwest::Client,
     token: &str,

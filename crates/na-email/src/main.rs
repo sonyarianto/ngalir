@@ -1,7 +1,12 @@
+//! Ngalir Email node.
+//!
+//! Send an email via SMTP.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::Value;
 use std::time::Duration;
 
+/// Return the capability manifest for `na-email`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-email".to_string(),
@@ -39,6 +44,7 @@ fn manifest() -> Manifest {
 }
 
 #[tokio::main(flavor = "current_thread")]
+/// Entry point: dispatch `--describe`, `--version`, or send an email.
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -101,6 +107,7 @@ async fn main() {
     }
 }
 
+/// Send an email via SMTP and return the message ID or an error.
 async fn send_email(
     to: &str,
     subject: &str,

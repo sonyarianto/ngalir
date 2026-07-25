@@ -1,3 +1,7 @@
+//! Ngalir Discord node.
+//!
+//! Send messages to Discord via webhook or bot token.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest,
@@ -6,6 +10,7 @@ use serde_json::Value;
 
 const DISCORD_API_BASE: &str = "https://discord.com/api/v10";
 
+/// Return the capability manifest for `na-discord`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-discord".to_string(),
@@ -55,6 +60,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -69,6 +75,7 @@ async fn main() {
     run().await;
 }
 
+/// Dispatch the requested action to the matching command handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -105,6 +112,7 @@ async fn run() {
     }
 }
 
+/// Send a message to a Discord channel via an incoming webhook URL.
 async fn cmd_send_webhook(client: &reqwest::Client, input: &Value) -> Value {
     let webhook_url = input["webhook_url"].as_str().unwrap_or("");
     if webhook_url.is_empty() {
@@ -145,6 +153,7 @@ async fn cmd_send_webhook(client: &reqwest::Client, input: &Value) -> Value {
     output
 }
 
+/// Send a message to a Discord channel using a bot token.
 async fn cmd_send_bot(
     client: &reqwest::Client,
     base_url: &str,
@@ -197,6 +206,7 @@ async fn cmd_send_bot(
     output
 }
 
+/// Retrieve recent messages from a Discord channel.
 async fn cmd_get_messages(
     client: &reqwest::Client,
     base_url: &str,

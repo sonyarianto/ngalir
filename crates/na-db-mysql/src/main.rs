@@ -1,7 +1,12 @@
+//! Ngalir MySQL node.
+//!
+//! Execute SQL queries against MySQL databases.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::{json, Map, Value};
 use sqlx::{mysql::MySqlRow, Column, Row};
 
+/// Return the capability manifest for `na-db-mysql`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-db-mysql".to_string(),
@@ -38,6 +43,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or run a SQL query.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -52,6 +58,7 @@ async fn main() {
     run().await;
 }
 
+/// Execute a SQL query and print the result as JSON.
 async fn run() {
     let input = read_input();
     let conn_str = na_contract::read_secret("connection")
@@ -104,6 +111,7 @@ async fn run() {
     }
 }
 
+/// Convert a column value from a MySQL row to a JSON value.
 fn value_at(row: &MySqlRow, col: &str) -> Value {
     if let Ok(v) = row.try_get::<Option<i64>, _>(col) {
         return v.map(|n| json!(n)).unwrap_or(Value::Null);

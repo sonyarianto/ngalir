@@ -1,10 +1,11 @@
-//! Sample Ngalir node implementing the Node Contract.
+//! Ngalir Echo node.
 //!
-//! Demonstrates `--describe`, `--version`, and stdin/stdout JSON execution.
+//! Echoes the input `message` field back as `echo`.
 
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-echo`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-echo".to_string(),
@@ -33,6 +34,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or echo the input message.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {

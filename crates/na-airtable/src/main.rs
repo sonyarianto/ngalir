@@ -1,9 +1,14 @@
+//! Ngalir Airtable node.
+//!
+//! Read, create, update, and delete Airtable records via the REST API.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest,
 };
 use serde_json::Value;
 
+/// Return the capability manifest for `na-airtable`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-airtable".to_string(),
@@ -55,6 +60,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -69,6 +75,7 @@ async fn main() {
     run().await;
 }
 
+/// Dispatch the requested action to the matching command handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -127,6 +134,7 @@ fn build_headers(token: &str) -> reqwest::header::HeaderMap {
     headers
 }
 
+/// List records from an Airtable table with optional filtering and sorting.
 async fn cmd_list(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let max_records = input["max_records"].as_u64().unwrap_or(100);
     let mut url = format!("{base_url}?maxRecords={max_records}");
@@ -172,6 +180,7 @@ async fn cmd_list(client: &reqwest::Client, base_url: &str, token: &str, input: 
     output
 }
 
+/// Get a single Airtable record by its record ID.
 async fn cmd_get(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
@@ -203,6 +212,7 @@ async fn cmd_get(client: &reqwest::Client, base_url: &str, token: &str, input: &
     body
 }
 
+/// Create a new Airtable record with the provided fields.
 async fn cmd_create(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let fields = input.get("fields").and_then(Value::as_object).cloned();
     let fields = match fields {
@@ -240,6 +250,7 @@ async fn cmd_create(client: &reqwest::Client, base_url: &str, token: &str, input
     body
 }
 
+/// Update an existing Airtable record by its record ID with new fields.
 async fn cmd_update(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
@@ -284,6 +295,7 @@ async fn cmd_update(client: &reqwest::Client, base_url: &str, token: &str, input
     body
 }
 
+/// Delete an Airtable record by its record ID.
 async fn cmd_delete(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {

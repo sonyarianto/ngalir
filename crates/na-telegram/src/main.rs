@@ -1,8 +1,13 @@
+//! Ngalir Telegram node.
+//!
+//! Send messages and get updates via the Telegram Bot API.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::Value;
 
 const TELEGRAM_API_BASE: &str = "https://api.telegram.org";
 
+/// Return the capability manifest for `na-telegram`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-telegram".to_string(),
@@ -51,6 +56,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -65,6 +71,7 @@ async fn main() {
     run().await;
 }
 
+/// Read input and dispatch to the requested action handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -105,6 +112,7 @@ async fn run() {
     }
 }
 
+/// Send a message to a Telegram chat.
 async fn send_message(
     client: &reqwest::Client,
     token: &str,
@@ -159,6 +167,7 @@ async fn send_message(
     })
 }
 
+/// Fetch pending updates (messages) from a Telegram bot.
 async fn get_updates(
     client: &reqwest::Client,
     token: &str,

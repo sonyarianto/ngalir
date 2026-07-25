@@ -1,9 +1,14 @@
+//! Ngalir S3 node.
+//!
+//! Read, write, list, and delete objects in S3-compatible object storage.
+
 use na_contract::{
     date_stamp_iso8601, exit_code, fail, print_manifest, read_input, AuthType, CredentialField,
     CredentialSpec, Manifest,
 };
 use serde_json::Value;
 
+/// Return the capability manifest for `na-s3`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-s3".to_string(),
@@ -69,6 +74,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -83,6 +89,7 @@ async fn main() {
     run().await;
 }
 
+/// Dispatch the requested action to the matching command handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -246,6 +253,7 @@ fn s3_signature(
     hex_encode(&hmac_sha256(&k_signing, string_to_sign.as_bytes()))
 }
 
+/// Read an object from S3 and return its content and content-type.
 async fn cmd_read(
     client: &reqwest::Client,
     endpoint: &str,
@@ -308,6 +316,7 @@ async fn cmd_read(
     })
 }
 
+/// Write an object to S3 and return its ETag.
 async fn cmd_write(
     client: &reqwest::Client,
     endpoint: &str,
@@ -385,6 +394,7 @@ struct Contents {
     last_modified: String,
 }
 
+/// List objects in an S3 bucket with an optional prefix filter.
 async fn cmd_list(
     client: &reqwest::Client,
     endpoint: &str,
@@ -457,6 +467,7 @@ async fn cmd_list(
     })
 }
 
+/// Delete an object from an S3 bucket.
 async fn cmd_delete(
     client: &reqwest::Client,
     endpoint: &str,

@@ -1,3 +1,7 @@
+//! Ngalir Stripe node.
+//!
+//! List, create, and manage payments and customers via the Stripe API.
+
 use na_contract::{
     exit_code, fail, print_manifest, read_input, AuthType, CredentialField, CredentialSpec,
     Manifest,
@@ -6,6 +10,7 @@ use serde_json::Value;
 
 const STRIPE_API_BASE: &str = "https://api.stripe.com/v1";
 
+/// Return the capability manifest for `na-stripe`.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-stripe".to_string(),
@@ -67,6 +72,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or actions.
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -81,6 +87,7 @@ async fn main() {
     run().await;
 }
 
+/// Dispatch the requested action to the matching command handler.
 async fn run() {
     let input = read_input();
     let action = input["action"].as_str().unwrap_or("");
@@ -116,6 +123,7 @@ async fn run() {
     }
 }
 
+/// List customers from Stripe with an optional limit.
 async fn cmd_list_customers(
     client: &reqwest::Client,
     secret_key: &str,
@@ -157,6 +165,7 @@ async fn cmd_list_customers(
     output
 }
 
+/// Create a new customer in Stripe with email, name, and/or description.
 async fn cmd_create_customer(
     client: &reqwest::Client,
     secret_key: &str,
@@ -211,6 +220,7 @@ async fn cmd_create_customer(
     output
 }
 
+/// List payment intents from Stripe, optionally filtered by customer.
 async fn cmd_list_payments(
     client: &reqwest::Client,
     secret_key: &str,
@@ -258,6 +268,7 @@ async fn cmd_list_payments(
     output
 }
 
+/// Create a payment intent in Stripe with amount, currency, and optional payment method.
 async fn cmd_create_payment(
     client: &reqwest::Client,
     secret_key: &str,
@@ -319,6 +330,7 @@ async fn cmd_create_payment(
     output
 }
 
+/// Retrieve a single payment intent by its ID.
 async fn cmd_retrieve_payment(
     client: &reqwest::Client,
     secret_key: &str,
