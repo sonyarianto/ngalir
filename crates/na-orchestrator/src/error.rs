@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum FlowError {
     #[error("cycle detected in flow DAG")]
@@ -24,3 +23,6 @@ pub enum FlowError {
     #[error("state error: {0}")]
     StateError(String),
 }
+
+#[allow(dead_code)]
+pub type Result<T> = std::result::Result<T, FlowError>;

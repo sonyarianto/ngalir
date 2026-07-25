@@ -11,6 +11,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::broadcast;
 use tracing::error;
 
+use crate::error::FlowError;
 use crate::oauth::OAuthStore;
 use crate::FlowSpec;
 
@@ -544,8 +545,9 @@ pub(crate) async fn api_credentials_get(Path(id): Path<String>) -> Result<Json<V
     match crate::call_vault_get(&id).await {
         Ok(cred) => Ok(Json(cred)),
         Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("not found") {
+            if e.downcast_ref::<FlowError>()
+                .is_some_and(|f| matches!(f, FlowError::NodeNotFound(_)))
+            {
                 Err(StatusCode::NOT_FOUND)
             } else {
                 error!("credential get failed: {e}");
@@ -612,8 +614,9 @@ pub(crate) async fn api_credentials_update(
     match crate::call_vault_update(&id, Value::Object(data)).await {
         Ok(cred) => Ok(Json(cred)),
         Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("not found") {
+            if e.downcast_ref::<FlowError>()
+                .is_some_and(|f| matches!(f, FlowError::NodeNotFound(_)))
+            {
                 Err(StatusCode::NOT_FOUND)
             } else {
                 error!("credential update failed: {e}");
@@ -629,8 +632,9 @@ pub(crate) async fn api_credentials_delete(
     match crate::call_vault_delete(&id).await {
         Ok(result) => Ok(Json(result)),
         Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("not found") {
+            if e.downcast_ref::<FlowError>()
+                .is_some_and(|f| matches!(f, FlowError::NodeNotFound(_)))
+            {
                 Err(StatusCode::NOT_FOUND)
             } else {
                 error!("credential delete failed: {e}");
@@ -646,8 +650,9 @@ pub(crate) async fn api_credentials_test(
     let cred = match crate::call_vault_get(&id).await {
         Ok(c) => c,
         Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("not found") {
+            if e.downcast_ref::<FlowError>()
+                .is_some_and(|f| matches!(f, FlowError::NodeNotFound(_)))
+            {
                 return Err(StatusCode::NOT_FOUND);
             }
             error!("credential get for test failed: {e}");

@@ -1,3 +1,4 @@
+use crate::FlowError;
 use anyhow::{bail, Context, Result};
 use na_contract::{is_leap, now_iso8601, Manifest};
 use rhai::{Engine, Scope};
@@ -117,12 +118,10 @@ pub(crate) async fn preflight(flow: &FlowSpec) -> Result<HashMap<String, NodeBin
         for req in &requireds {
             let provided = node.with.get(req).is_some() || node.inputs.contains_key(req);
             if !provided {
-                bail!(
+                bail!(FlowError::ValidationError(format!(
                     "node '{}' (na-{}) is missing required input '{}'",
-                    node.id,
-                    node.use_,
-                    req
-                );
+                    node.id, node.use_, req
+                )));
             }
         }
 
@@ -357,19 +356,16 @@ pub(crate) fn check_cycles(nodes: &[NodeSpec]) -> Result<()> {
         succ: &[Vec<usize>],
         color: &mut Vec<Color>,
         path: &mut Vec<usize>,
-        names: &[String],
+        _names: &[String],
     ) -> Result<()> {
         color[i] = Color::Gray;
         path.push(i);
         for &next in &succ[i] {
             match color[next] {
                 Color::Gray => {
-                    let start = path.iter().position(|&n| n == next).unwrap_or(0);
-                    let cycle: Vec<&str> =
-                        path[start..].iter().map(|&n| names[n].as_str()).collect();
-                    bail!("cycle detected: {} -> {}", cycle.join(" -> "), names[next]);
+                    bail!(FlowError::CycleDetected);
                 }
-                Color::White => dfs(next, succ, color, path, names)?,
+                Color::White => dfs(next, succ, color, path, _names)?,
                 Color::Black => {}
             }
         }
@@ -565,7 +561,9 @@ pub(crate) fn validate_input(input: &Value, schema: &Value, node_id: &str) -> Re
         for error in validator.iter_errors(input) {
             warn!(validation_error = %error, "schema violation");
         }
-        bail!("schema validation failed for node '{node_id}'");
+        bail!(FlowError::SchemaError(format!(
+            "schema validation failed for node '{node_id}'"
+        )));
     }
     Ok(())
 }
@@ -576,7 +574,9 @@ pub(crate) fn chrono_now() -> String {
 
 pub(crate) fn parse_iso8601_ms(s: &str) -> Result<i64> {
     if s.len() < 20 {
-        bail!("invalid timestamp: {s}");
+        bail!(FlowError::ValidationError(format!(
+            "invalid timestamp: {s}"
+        )));
     }
     let y: i64 = s[0..4].parse()?;
     let m: i64 = s[5..7].parse()?;

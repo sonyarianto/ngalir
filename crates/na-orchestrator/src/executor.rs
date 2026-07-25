@@ -1,4 +1,6 @@
 use anyhow::{bail, Context, Result};
+
+use crate::error::FlowError;
 use prometheus::{register_int_counter_vec, IntCounterVec};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -138,7 +140,7 @@ pub(crate) async fn execute_flow(
                 let _ =
                     h.record_flow_end(flow_id, "failed", Some("cycle or unresolved dependency"));
             }
-            bail!("cycle or unresolved dependency detected among remaining nodes");
+            bail!(FlowError::CycleDetected);
         }
 
         let mut ready = Vec::new();
@@ -195,7 +197,10 @@ pub(crate) async fn execute_flow(
                     if let Some(f) = on_event {
                         f("node_failed", Some(&node.id), None, Some(&err));
                     }
-                    bail!("{err}");
+                    bail!(FlowError::NodeNotFound(format!(
+                        "unknown node type '{}'",
+                        node.use_
+                    )));
                 }
             };
             let output_dir = output_dir_path.clone();
@@ -431,13 +436,10 @@ async fn execute_node(
                 );
                 return Ok((node.id.clone(), Value::Null));
             }
-            bail!(
-                "node {} ({}) failed code {}: {}",
-                node.id,
-                bin.binary,
-                code,
-                stderr
-            );
+            bail!(FlowError::NodeFailed(
+                node.id.clone(),
+                format!("exit code {}: {}", code, stderr)
+            ));
         } else {
             let out = child.wait_with_output().await?;
 
@@ -478,13 +480,10 @@ async fn execute_node(
                 );
                 return Ok((node.id.clone(), Value::Null));
             }
-            bail!(
-                "node {} ({}) failed code {}: {}",
-                node.id,
-                bin.binary,
-                code,
-                stderr,
-            );
+            bail!(FlowError::NodeFailed(
+                node.id.clone(),
+                format!("exit code {}: {}", code, stderr),
+            ));
         }
     }
 }

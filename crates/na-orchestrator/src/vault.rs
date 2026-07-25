@@ -3,6 +3,7 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
+use crate::error::FlowError;
 use crate::flow;
 
 pub(crate) async fn resolve_vault_refs(input: &mut Value) -> Result<()> {
@@ -47,10 +48,10 @@ async fn call_vault_resolve(ref_str: &str) -> Result<String> {
     let out = child.wait_with_output().await?;
 
     if !out.status.success() {
-        bail!(
-            "na-vault resolve failed: {}",
+        bail!(FlowError::VaultError(format!(
+            "resolve failed: {}",
             String::from_utf8_lossy(&out.stderr).trim()
-        );
+        )));
     }
     let result: Value = serde_json::from_slice(&out.stdout).context("parse na-vault output")?;
     Ok(result["secret"]
@@ -95,7 +96,7 @@ pub(crate) async fn call_vault(
         } else {
             stderr
         };
-        bail!("na-vault {} failed: {}", mode, msg);
+        bail!(FlowError::VaultError(format!("{} failed: {}", mode, msg)));
     }
 
     let result: Value = serde_json::from_slice(&out.stdout)

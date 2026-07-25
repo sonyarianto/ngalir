@@ -1,4 +1,6 @@
 use anyhow::Result;
+
+use crate::error::FlowError;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -40,12 +42,13 @@ impl StateStore {
             return Ok(());
         };
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent).map_err(|e| FlowError::StateError(e.to_string()))?;
         }
         let tmp = path.with_extension("tmp");
-        let json = serde_json::to_string(&self.data)?;
-        std::fs::write(&tmp, &json)?;
-        std::fs::rename(&tmp, path)?;
+        let json =
+            serde_json::to_string(&self.data).map_err(|e| FlowError::StateError(e.to_string()))?;
+        std::fs::write(&tmp, &json).map_err(|e| FlowError::StateError(e.to_string()))?;
+        std::fs::rename(&tmp, path).map_err(|e| FlowError::StateError(e.to_string()))?;
         Ok(())
     }
 }

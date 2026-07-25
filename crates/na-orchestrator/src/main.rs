@@ -11,6 +11,7 @@ use clap_complete::generate;
 use na_contract::Manifest;
 
 mod error;
+pub(crate) use error::*;
 mod flow;
 mod init_node;
 pub(crate) use flow::*;
