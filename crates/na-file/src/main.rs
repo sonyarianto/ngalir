@@ -108,6 +108,40 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    fn file_bin() -> PathBuf {
+        let exe = std::env::current_exe().expect("current exe");
+        let dir = exe.parent().expect("exe parent");
+        let mut p = dir.parent().expect("deps parent").to_path_buf();
+        p.push("na-file");
+        p
+    }
+
+    fn run(input: serde_json::Value) -> (bool, String, String) {
+        let mut child = Command::new(file_bin())
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn na-file");
+        {
+            use std::io::Write;
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(input.to_string().as_bytes())
+                .unwrap();
+        }
+        let output = child.wait_with_output().expect("wait");
+        (
+            output.status.success(),
+            String::from_utf8_lossy(&output.stdout).to_string(),
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        )
+    }
 
     #[test]
     fn test_manifest_structure() {
@@ -127,5 +161,102 @@ mod tests {
         let vals: Vec<&str> = actions.iter().map(|v| v.as_str().unwrap()).collect();
         assert!(vals.contains(&"read"));
         assert!(vals.contains(&"write"));
+    }
+
+    #[test]
+    fn test_write_then_read_roundtrip() {
+        let pid = std::process::id();
+        let dir = std::env::temp_dir();
+        let file_path = dir.join(format!("ngalir_rt_{pid}.txt"));
+        let _ = std::fs::remove_file(&file_path);
+
+        let (ok, stdout, stderr) = run(serde_json::json!({
+            "action": "write",
+            "path": file_path.to_string_lossy(),
+            "content": "hello world"
+        }));
+        assert!(ok, "write failed: stderr={stderr}");
+        let result: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(result["bytes"], 11);
+
+        let written = std::fs::read_to_string(&file_path).unwrap_or_else(|e| {
+            panic!(
+                "file not found after write: {e}, path={}",
+                file_path.display()
+            )
+        });
+        assert_eq!(written, "hello world");
+
+        let (ok, stdout, stderr) = run(serde_json::json!({
+            "action": "read",
+            "path": file_path.to_string_lossy()
+        }));
+        assert!(ok, "read failed: stderr={stderr}");
+        let result: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(result["content"], "hello world");
+        assert_eq!(result["bytes"], 11);
+
+        let _ = std::fs::remove_file(&file_path);
+    }
+
+    #[test]
+    fn test_write_creates_parent_dirs() {
+        let base_dir = std::env::temp_dir().join("ngalir_test_nested");
+        let file_path = base_dir.join("sub").join("output.txt");
+        let _ = std::fs::remove_dir_all(&base_dir);
+
+        let (ok, stdout, _) = run(serde_json::json!({
+            "action": "write",
+            "path": file_path.to_string_lossy(),
+            "content": "nested"
+        }));
+        assert!(ok, "write should create parent dirs");
+        let result: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(result["bytes"], 6);
+
+        let written = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(written, "nested");
+
+        let _ = std::fs::remove_dir_all(&base_dir);
+    }
+
+    #[test]
+    fn test_read_missing_path() {
+        let (ok, _, stderr) = run(serde_json::json!({
+            "action": "read"
+        }));
+        assert!(!ok, "missing path should fail");
+        assert!(stderr.contains("missing"), "stderr: {stderr}");
+    }
+
+    #[test]
+    fn test_read_nonexistent_file() {
+        let (ok, _, stderr) = run(serde_json::json!({
+            "action": "read",
+            "path": "/tmp/ngalir_nonexistent_file_xyz.txt"
+        }));
+        assert!(!ok, "nonexistent file should fail");
+        assert!(stderr.contains("failed"), "stderr: {stderr}");
+    }
+
+    #[test]
+    fn test_invalid_action() {
+        let (ok, _, stderr) = run(serde_json::json!({
+            "action": "invalid",
+            "path": "/tmp/x"
+        }));
+        assert!(!ok, "invalid action should fail");
+        assert!(stderr.contains("must be"), "stderr: {stderr}");
+    }
+
+    #[test]
+    fn test_describe_output() {
+        let output = Command::new(file_bin())
+            .arg("--describe")
+            .output()
+            .expect("spawn --describe");
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("na-file"));
     }
 }

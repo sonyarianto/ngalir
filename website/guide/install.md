@@ -9,7 +9,7 @@ curl -sSL https://raw.githubusercontent.com/sonyarianto/ngalir/main/scripts/inst
 Override the install directory or pin a version:
 
 ```bash
-NGALIR_VERSION=v0.1.0 NGALIR_INSTALL_DIR=~/.local/bin bash -c "$(curl -sSL https://raw.githubusercontent.com/sonyarianto/ngalir/main/scripts/install.sh)"
+NGALIR_VERSION=v0.1.2 NGALIR_INSTALL_DIR=~/.local/bin bash -c "$(curl -sSL https://raw.githubusercontent.com/sonyarianto/ngalir/main/scripts/install.sh)"
 ```
 
 ## Docker
