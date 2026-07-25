@@ -1,6 +1,14 @@
+//! Ngalir File node.
+//!
+//! Read from or write to local files.
+//! Uses `NGALIR_OUTPUT_DIR` for output path resolution when set.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use std::path::PathBuf;
 
+/// Return the capability manifest for `na-file`.
+///
+/// Registers actions: read, write. Supports file output mode.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-file".to_string(),
@@ -33,12 +41,14 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Resolve the output file path from `NGALIR_OUTPUT_DIR`, if set.
 fn output_file_path() -> Option<PathBuf> {
     std::env::var("NGALIR_OUTPUT_DIR")
         .ok()
         .map(|d| PathBuf::from(d).join("output.json"))
 }
 
+/// Write a JSON value to the output path (if configured) or stdout.
 fn write_output(val: serde_json::Value) {
     if let Some(out_path) = output_file_path() {
         let json = serde_json::to_string(&val).expect("serialize");
@@ -51,6 +61,7 @@ fn write_output(val: serde_json::Value) {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, `read`, or `write`.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {

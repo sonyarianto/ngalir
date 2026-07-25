@@ -2267,7 +2267,7 @@ dependencies = [
 
 [[package]]
 name = "na-airtable"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "na-contract"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -2288,7 +2288,7 @@ dependencies = [
 
 [[package]]
 name = "na-csv"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "csv",
@@ -2299,7 +2299,7 @@ dependencies = [
 
 [[package]]
 name = "na-db-mysql"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "serde_json",
@@ -2309,7 +2309,7 @@ dependencies = [
 
 [[package]]
 name = "na-db-postgres"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "serde_json",
@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "na-db-sqlite"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "serde_json",
@@ -2329,7 +2329,7 @@ dependencies = [
 
 [[package]]
 name = "na-discord"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2341,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "na-echo"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "serde_json",
@@ -2349,7 +2349,7 @@ dependencies = [
 
 [[package]]
 name = "na-email"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "lettre",
@@ -2361,7 +2361,7 @@ dependencies = [
 
 [[package]]
 name = "na-excel"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "calamine",
@@ -2373,7 +2373,7 @@ dependencies = [
 
 [[package]]
 name = "na-file"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "serde_json",
@@ -2381,7 +2381,7 @@ dependencies = [
 
 [[package]]
 name = "na-fixedwidth"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "na-contract",
@@ -2390,7 +2390,7 @@ dependencies = [
 
 [[package]]
 name = "na-google-sheets"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "jsonwebtoken",
  "na-contract",
@@ -2403,7 +2403,7 @@ dependencies = [
 
 [[package]]
 name = "na-html"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "na-contract",
@@ -2413,7 +2413,7 @@ dependencies = [
 
 [[package]]
 name = "na-http"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.13.4",
@@ -2423,7 +2423,7 @@ dependencies = [
 
 [[package]]
 name = "na-json"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "na-contract",
@@ -2432,7 +2432,7 @@ dependencies = [
 
 [[package]]
 name = "na-jsonpath"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "serde_json",
@@ -2440,7 +2440,7 @@ dependencies = [
 
 [[package]]
 name = "na-llm"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.13.4",
@@ -2452,7 +2452,7 @@ dependencies = [
 
 [[package]]
 name = "na-notion"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2464,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "na-orchestrator"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -2493,7 +2493,7 @@ dependencies = [
 
 [[package]]
 name = "na-parquet"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "na-contract",
@@ -2503,7 +2503,7 @@ dependencies = [
 
 [[package]]
 name = "na-s3"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "quick-xml 0.37.5",
@@ -2517,7 +2517,7 @@ dependencies = [
 
 [[package]]
 name = "na-schedule"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -2534,7 +2534,7 @@ dependencies = [
 
 [[package]]
 name = "na-slack"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2546,7 +2546,7 @@ dependencies = [
 
 [[package]]
 name = "na-stripe"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2558,7 +2558,7 @@ dependencies = [
 
 [[package]]
 name = "na-telegram"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2570,7 +2570,7 @@ dependencies = [
 
 [[package]]
 name = "na-twilio"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "na-contract",
  "reqwest 0.12.28",
@@ -2582,7 +2582,7 @@ dependencies = [
 
 [[package]]
 name = "na-vault"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "aes-gcm",
  "base64",
@@ -2597,7 +2597,7 @@ dependencies = [
 
 [[package]]
 name = "na-webhook"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -2613,7 +2613,7 @@ dependencies = [
 
 [[package]]
 name = "na-xml"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "na-contract",
@@ -2623,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "na-yaml"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "na-contract",
@@ -2633,7 +2633,7 @@ dependencies = [
 
 [[package]]
 name = "na-zip"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "flate2",

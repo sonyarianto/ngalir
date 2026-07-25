@@ -1,6 +1,14 @@
+//! Ngalir CSV node.
+//!
+//! Read and write CSV files with configurable delimiter, headers, and encoding.
+//! Supports NDJSON output (one JSON object per row) for streaming consumption.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-csv`.
+///
+/// Registers actions: read, write. Streaming is enabled (one NDJSON line per row).
 fn manifest() -> Manifest {
     Manifest {
         name: "na-csv".to_string(),
@@ -41,6 +49,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, `read`, or `write`.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -68,6 +77,10 @@ fn main() {
     }
 }
 
+/// Parse a CSV file and print each row as NDJSON to stdout.
+///
+/// When `has_headers` is true, rows are JSON objects keyed by header names.
+/// When false, rows are JSON arrays of field values.
 fn cmd_read(path: Option<&str>, delimiter: u8, has_headers: bool) {
     let p = path.unwrap_or_else(|| {
         fail(
@@ -141,6 +154,9 @@ fn cmd_read(path: Option<&str>, delimiter: u8, has_headers: bool) {
     }
 }
 
+/// Serialize rows to CSV and write to a file or stdout.
+///
+/// Accepts a `rows` array of objects and optional `columns` ordering.
 fn cmd_write(path: Option<&str>, delimiter: u8, has_headers: bool, input: &Value) {
     let rows = match input.get("rows").and_then(Value::as_array) {
         Some(r) => r,
@@ -188,6 +204,9 @@ fn cmd_write(path: Option<&str>, delimiter: u8, has_headers: bool, input: &Value
     }
 }
 
+/// Low-level CSV writer: creates a writer from path or stdout and writes all rows.
+///
+/// Returns the number of rows written on success.
 fn write_csv(
     path: Option<&str>,
     delimiter: u8,
@@ -220,6 +239,7 @@ fn write_csv(
     }
 }
 
+/// Write all rows to a CSV writer, handling headers and field ordering.
 fn write_all_rows<W: std::io::Write>(
     wtr: &mut csv::Writer<W>,
     rows: &[Value],
@@ -243,6 +263,7 @@ fn write_all_rows<W: std::io::Write>(
     Ok(())
 }
 
+/// Convert a JSON value to its CSV string representation.
 fn value_to_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),

@@ -1,6 +1,14 @@
+//! Ngalir JSON node.
+//!
+//! Read, write, pick, omit, and merge JSON documents.
+//! Input is read from stdin as JSON; output is written to stdout as JSON.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-json`.
+///
+/// Registers actions: read, write, pick, omit, merge.
 fn manifest() -> Manifest {
     Manifest {
         name: "na-json".to_string(),
@@ -58,6 +66,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, or read action.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -85,6 +94,7 @@ fn main() {
     }
 }
 
+/// Parse a JSON string (inline or from file) and print the result with a count.
 fn cmd_read(input: &Value) {
     let json_str = input["json"]
         .as_str()
@@ -115,6 +125,7 @@ fn cmd_read(input: &Value) {
     println!("{output}");
 }
 
+/// Serialize a JSON value to a file or stdout.
 fn cmd_write(input: &Value) {
     let data = match input.get("data") {
         Some(d) => d,
@@ -148,6 +159,7 @@ fn cmd_write(input: &Value) {
     }
 }
 
+/// Select specific keys from a JSON object and output the subset.
 fn cmd_pick(input: &Value) {
     let data = match input.get("data") {
         Some(d) => d,
@@ -185,6 +197,7 @@ fn cmd_pick(input: &Value) {
     println!("{output}");
 }
 
+/// Remove specific keys from a JSON object and output the remainder.
 fn cmd_omit(input: &Value) {
     let data = match input.get("data") {
         Some(d) => d,
@@ -221,6 +234,7 @@ fn cmd_omit(input: &Value) {
     println!("{output}");
 }
 
+/// Deep-merge an array of objects into a single object (last writer wins).
 fn cmd_merge(input: &Value) {
     let objects = match input.get("objects").and_then(Value::as_array) {
         Some(o) => o,

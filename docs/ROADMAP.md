@@ -740,7 +740,7 @@ Follow-up items identified during Phase 12 review and pre-release cleanup.
 
 ---
 
-## Phase 15: Rustidiom — Technical Debt & Idiomatic Refactoring ✅ [8/8 done]
+## Phase 15: Rustidiom — Technical Debt & Idiomatic Refactoring ✅ [7/8 done, 1 partial]
 
 **Problem:** The codebase works well but accumulated structural debt during rapid feature development: monolithic files, `unwrap()` in production paths, duplicated date logic, inconsistent error handling, and missing documentation.
 
@@ -777,9 +777,11 @@ Added `now_iso8601()`, `date_stamp_iso8601()`, `is_leap()` to `na-contract`. Rem
 
 15 crates converted from manual `Builder::new_multi_thread().enable_all().build().unwrap()` + `block_on()` to `#[tokio::main]`. Tokio features trimmed from `"full"` to `"rt-multi-thread"` + `"macros"`. `init_node.rs` template updated.
 
-### 15.6 Document Public API Surfaces
+### 15.6 Document Public API Surfaces 🟡 [partial]
 
-Node crates (json, file, yaml, xml, zip, csv, excel, etc.) have zero `///` doc comments.
+**Done:** `///` doc comments and `//!` crate-level docs added to `na-json`, `na-file`, `na-yaml`, and `na-csv`. These 4 crates now meet the minimum bar (every public function + crate-level doc).
+
+**Remaining:** All other node crates (xml, zip, excel, html, parquet, s3, airtable, discord, slack, stripe, telegram, twilio, notion, google-sheets, vault, fixedwidth, llm, webhook, email, schedule, http, echo, db-*). Effort estimate unchanged: ~2-3 days total for the remaining crates.
 
 **Tasks:**
 - Add `///` doc comments to all `pub fn` in every node crate's `main.rs`:
@@ -788,8 +790,6 @@ Node crates (json, file, yaml, xml, zip, csv, excel, etc.) have zero `///` doc c
   - Each sub-command handler
 - Add `//!` crate-level docs where absent
 - Minimum bar: every function that appears in `--describe` output must have doc
-
-**Effort:** 2-3 days (rote work, good for onboarding).
 
 ### 15.7 Fix S3 `cmd_list` Stub ✅
 

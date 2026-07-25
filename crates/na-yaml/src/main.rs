@@ -1,6 +1,14 @@
+//! Ngalir YAML node.
+//!
+//! Parse YAML documents into JSON and serialize JSON to YAML.
+//! Supports inline YAML strings and file paths.
+
 use na_contract::{exit_code, fail, print_manifest, read_input, Example, Manifest};
 use serde_json::Value;
 
+/// Return the capability manifest for `na-yaml`.
+///
+/// Registers actions: read (parse YAML to JSON), write (serialize JSON to YAML).
 fn manifest() -> Manifest {
     Manifest {
         name: "na-yaml".to_string(),
@@ -48,6 +56,7 @@ fn manifest() -> Manifest {
     }
 }
 
+/// Entry point: dispatch `--describe`, `--version`, `read`, or `write`.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--describe") {
@@ -69,6 +78,7 @@ fn main() {
     }
 }
 
+/// Parse a YAML string (inline or from file) and print the JSON result.
 fn cmd_read(input: &Value) {
     let yaml_str = input["yaml"]
         .as_str()
@@ -99,6 +109,7 @@ fn cmd_read(input: &Value) {
     println!("{output}");
 }
 
+/// Serialize a JSON value to YAML and write to a file or stdout.
 fn cmd_write(input: &Value) {
     let data = match input.get("data") {
         Some(d) => d,
