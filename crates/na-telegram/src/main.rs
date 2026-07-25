@@ -90,8 +90,14 @@ async fn run() {
         .unwrap();
 
     match action {
-        "send_message" => send_message(&client, &token, TELEGRAM_API_BASE, &input, chat_id).await,
-        "get_updates" => get_updates(&client, &token, TELEGRAM_API_BASE, &input).await,
+        "send_message" => println!(
+            "{}",
+            send_message(&client, &token, TELEGRAM_API_BASE, &input, chat_id).await
+        ),
+        "get_updates" => println!(
+            "{}",
+            get_updates(&client, &token, TELEGRAM_API_BASE, &input).await
+        ),
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}'"),
@@ -105,7 +111,7 @@ async fn send_message(
     base_url: &str,
     input: &Value,
     chat_id: &str,
-) {
+) -> Value {
     let text = input["text"].as_str().unwrap_or("");
     if text.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'text' for send_message");
@@ -147,14 +153,18 @@ async fn send_message(
 
     let result = &body["result"];
     let message_id = result["message_id"].as_i64().unwrap_or(0);
-    let output = serde_json::json!({
+    serde_json::json!({
         "ok": true,
         "message_id": message_id,
-    });
-    println!("{output}");
+    })
 }
 
-async fn get_updates(client: &reqwest::Client, token: &str, base_url: &str, input: &Value) {
+async fn get_updates(
+    client: &reqwest::Client,
+    token: &str,
+    base_url: &str,
+    input: &Value,
+) -> Value {
     let offset = input["offset"].as_i64();
     let limit = input["limit"].as_i64().unwrap_or(100);
 
@@ -193,11 +203,10 @@ async fn get_updates(client: &reqwest::Client, token: &str, base_url: &str, inpu
 
     let updates = body["result"].as_array().cloned().unwrap_or_default();
     let count = updates.len() as i64;
-    let output = serde_json::json!({
+    serde_json::json!({
         "updates": updates,
         "count": count,
-    });
-    println!("{output}");
+    })
 }
 
 #[cfg(test)]
@@ -239,7 +248,10 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"text": "Hello"});
-        send_message(&client, "test-token", &mock_server.uri(), &input, "chat123").await;
+        let result =
+            send_message(&client, "test-token", &mock_server.uri(), &input, "chat123").await;
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["message_id"], 42);
     }
 
     #[tokio::test]
@@ -256,6 +268,8 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"limit": 10});
-        get_updates(&client, "test-token", &mock_server.uri(), &input).await;
+        let result = get_updates(&client, "test-token", &mock_server.uri(), &input).await;
+        assert_eq!(result["count"], 1);
+        assert_eq!(result["updates"][0]["update_id"], 1);
     }
 }

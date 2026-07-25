@@ -102,11 +102,11 @@ async fn run() {
         .unwrap();
 
     match action {
-        "list_customers" => cmd_list_customers(&client, &secret_key, STRIPE_API_BASE, &input).await,
-        "create_customer" => cmd_create_customer(&client, &secret_key, STRIPE_API_BASE, &input).await,
-        "list_payments" => cmd_list_payments(&client, &secret_key, STRIPE_API_BASE, &input).await,
-        "create_payment" => cmd_create_payment(&client, &secret_key, STRIPE_API_BASE, &input).await,
-        "retrieve_payment" => cmd_retrieve_payment(&client, &secret_key, STRIPE_API_BASE, &input).await,
+        "list_customers" => println!("{}", cmd_list_customers(&client, &secret_key, STRIPE_API_BASE, &input).await),
+        "create_customer" => println!("{}", cmd_create_customer(&client, &secret_key, STRIPE_API_BASE, &input).await),
+        "list_payments" => println!("{}", cmd_list_payments(&client, &secret_key, STRIPE_API_BASE, &input).await),
+        "create_payment" => println!("{}", cmd_create_payment(&client, &secret_key, STRIPE_API_BASE, &input).await),
+        "retrieve_payment" => println!("{}", cmd_retrieve_payment(&client, &secret_key, STRIPE_API_BASE, &input).await),
         _ => fail(
             exit_code::INVALID_INPUT,
             format!(
@@ -121,7 +121,7 @@ async fn cmd_list_customers(
     secret_key: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let limit = input.get("limit").and_then(Value::as_u64).unwrap_or(10);
 
     let url = format!("{base_url}/customers");
@@ -154,7 +154,7 @@ async fn cmd_list_customers(
     let has_more = body["has_more"].as_bool().unwrap_or(false);
     let output =
         serde_json::json!({ "customers": customers, "count": count, "has_more": has_more });
-    println!("{output}");
+    output
 }
 
 async fn cmd_create_customer(
@@ -162,7 +162,7 @@ async fn cmd_create_customer(
     secret_key: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let mut params: Vec<(&str, String)> = Vec::new();
 
     if let Some(email) = input["email"].as_str() {
@@ -208,7 +208,7 @@ async fn cmd_create_customer(
 
     let id = body["id"].as_str().unwrap_or("").to_string();
     let output = serde_json::json!({ "customer": body, "id": id });
-    println!("{output}");
+    output
 }
 
 async fn cmd_list_payments(
@@ -216,7 +216,7 @@ async fn cmd_list_payments(
     secret_key: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let limit = input.get("limit").and_then(Value::as_u64).unwrap_or(10);
     let mut params: Vec<(&str, String)> = vec![("limit", limit.to_string())];
 
@@ -255,7 +255,7 @@ async fn cmd_list_payments(
     let count = payments.len() as i64;
     let has_more = body["has_more"].as_bool().unwrap_or(false);
     let output = serde_json::json!({ "payments": payments, "count": count, "has_more": has_more });
-    println!("{output}");
+    output
 }
 
 async fn cmd_create_payment(
@@ -263,7 +263,7 @@ async fn cmd_create_payment(
     secret_key: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let amount = input.get("amount").and_then(Value::as_i64).unwrap_or(-1);
     if amount <= 0 {
         fail(
@@ -316,7 +316,7 @@ async fn cmd_create_payment(
     let id = body["id"].as_str().unwrap_or("").to_string();
     let status_str = body["status"].as_str().unwrap_or("").to_string();
     let output = serde_json::json!({ "payment": body, "id": id, "status": status_str });
-    println!("{output}");
+    output
 }
 
 async fn cmd_retrieve_payment(
@@ -324,7 +324,7 @@ async fn cmd_retrieve_payment(
     secret_key: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let payment_id = input["payment_id"].as_str().unwrap_or("");
     if payment_id.is_empty() {
         fail(
@@ -359,7 +359,7 @@ async fn cmd_retrieve_payment(
     }
 
     let output = serde_json::json!({ "payment": body });
-    println!("{output}");
+    output
 }
 
 #[cfg(test)]
@@ -418,7 +418,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"limit": 2});
-        cmd_list_customers(&client, "sk_test", &mock_server.uri(), &input).await;
+        let result = cmd_list_customers(&client, "sk_test", &mock_server.uri(), &input).await;
+        assert_eq!(result["count"], 2);
+        assert_eq!(result["customers"][0]["id"], "cus_1");
     }
 
     #[tokio::test]
@@ -436,7 +438,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"email": "test@example.com", "name": "Test User"});
-        cmd_create_customer(&client, "sk_test", &mock_server.uri(), &input).await;
+        let result = cmd_create_customer(&client, "sk_test", &mock_server.uri(), &input).await;
+        assert_eq!(result["id"], "cus_new");
+        assert_eq!(result["customer"]["email"], "test@example.com");
     }
 
     #[tokio::test]
@@ -453,7 +457,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"limit": 1});
-        cmd_list_payments(&client, "sk_test", &mock_server.uri(), &input).await;
+        let result = cmd_list_payments(&client, "sk_test", &mock_server.uri(), &input).await;
+        assert_eq!(result["count"], 1);
+        assert_eq!(result["payments"][0]["id"], "pi_1");
     }
 
     #[tokio::test]
@@ -472,7 +478,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"amount": 5000, "currency": "usd"});
-        cmd_create_payment(&client, "sk_test", &mock_server.uri(), &input).await;
+        let result = cmd_create_payment(&client, "sk_test", &mock_server.uri(), &input).await;
+        assert_eq!(result["payment"]["id"], "pi_new");
+        assert_eq!(result["payment"]["status"], "succeeded");
     }
 
     #[tokio::test]
@@ -490,6 +498,7 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"payment_id": "pi_abc"});
-        cmd_retrieve_payment(&client, "sk_test", &mock_server.uri(), &input).await;
+        let result = cmd_retrieve_payment(&client, "sk_test", &mock_server.uri(), &input).await;
+        assert_eq!(result["payment"]["id"], "pi_abc");
     }
 }

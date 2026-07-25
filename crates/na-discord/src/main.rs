@@ -89,9 +89,15 @@ async fn run() {
         .unwrap();
 
     match action {
-        "send_webhook" => cmd_send_webhook(&client, &input).await,
-        "send_bot" => cmd_send_bot(&client, DISCORD_API_BASE, &token, &input).await,
-        "get_messages" => cmd_get_messages(&client, DISCORD_API_BASE, &token, &input).await,
+        "send_webhook" => println!("{}", cmd_send_webhook(&client, &input).await),
+        "send_bot" => println!(
+            "{}",
+            cmd_send_bot(&client, DISCORD_API_BASE, &token, &input).await
+        ),
+        "get_messages" => println!(
+            "{}",
+            cmd_get_messages(&client, DISCORD_API_BASE, &token, &input).await
+        ),
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{}'", action),
@@ -99,7 +105,7 @@ async fn run() {
     }
 }
 
-async fn cmd_send_webhook(client: &reqwest::Client, input: &Value) {
+async fn cmd_send_webhook(client: &reqwest::Client, input: &Value) -> Value {
     let webhook_url = input["webhook_url"].as_str().unwrap_or("");
     if webhook_url.is_empty() {
         fail(
@@ -136,10 +142,15 @@ async fn cmd_send_webhook(client: &reqwest::Client, input: &Value) {
     }
 
     let output = serde_json::json!({"ok": true});
-    println!("{output}");
+    output
 }
 
-async fn cmd_send_bot(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_send_bot(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let channel_id = input["channel_id"].as_str().unwrap_or("");
     if channel_id.is_empty() {
         fail(
@@ -183,10 +194,15 @@ async fn cmd_send_bot(client: &reqwest::Client, base_url: &str, token: &str, inp
         "ok": true,
         "message_id": message_id,
     });
-    println!("{output}");
+    output
 }
 
-async fn cmd_get_messages(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_get_messages(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let channel_id = input["channel_id"].as_str().unwrap_or("");
     if channel_id.is_empty() {
         fail(
@@ -221,7 +237,7 @@ async fn cmd_get_messages(client: &reqwest::Client, base_url: &str, token: &str,
         "messages": messages,
         "count": count,
     });
-    println!("{output}");
+    output
 }
 
 #[cfg(test)]
@@ -268,7 +284,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"channel_id": "123", "content": "Hello"});
-        cmd_send_bot(&client, &mock_server.uri(), "test-token", &input).await;
+        let result = cmd_send_bot(&client, &mock_server.uri(), "test-token", &input).await;
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["message_id"], "456");
     }
 
     #[tokio::test]
@@ -285,6 +303,8 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"channel_id": "123", "limit": 10});
-        cmd_get_messages(&client, &mock_server.uri(), "test-token", &input).await;
+        let result = cmd_get_messages(&client, &mock_server.uri(), "test-token", &input).await;
+        assert_eq!(result["count"], 2);
+        assert_eq!(result["messages"][0]["id"], "1");
     }
 }

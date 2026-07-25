@@ -120,52 +120,64 @@ async fn run() {
 
     match action {
         "read" => {
-            cmd_read(
-                &client,
-                endpoint,
-                bucket,
-                region,
-                &access_key,
-                &secret_key,
-                &input,
+            println!(
+                "{}",
+                cmd_read(
+                    &client,
+                    endpoint,
+                    bucket,
+                    region,
+                    &access_key,
+                    &secret_key,
+                    &input,
+                )
+                .await
             )
-            .await
         }
         "write" => {
-            cmd_write(
-                &client,
-                endpoint,
-                bucket,
-                region,
-                &access_key,
-                &secret_key,
-                &input,
+            println!(
+                "{}",
+                cmd_write(
+                    &client,
+                    endpoint,
+                    bucket,
+                    region,
+                    &access_key,
+                    &secret_key,
+                    &input,
+                )
+                .await
             )
-            .await
         }
         "list" => {
-            cmd_list(
-                &client,
-                endpoint,
-                bucket,
-                region,
-                &access_key,
-                &secret_key,
-                &input,
+            println!(
+                "{}",
+                cmd_list(
+                    &client,
+                    endpoint,
+                    bucket,
+                    region,
+                    &access_key,
+                    &secret_key,
+                    &input,
+                )
+                .await
             )
-            .await
         }
         "delete" => {
-            cmd_delete(
-                &client,
-                endpoint,
-                bucket,
-                region,
-                &access_key,
-                &secret_key,
-                &input,
+            println!(
+                "{}",
+                cmd_delete(
+                    &client,
+                    endpoint,
+                    bucket,
+                    region,
+                    &access_key,
+                    &secret_key,
+                    &input,
+                )
+                .await
             )
-            .await
         }
         _ => fail(
             exit_code::INVALID_INPUT,
@@ -242,7 +254,7 @@ async fn cmd_read(
     access_key: &str,
     secret_key: &str,
     input: &Value,
-) {
+) -> Value {
     let key = input["key"].as_str().unwrap_or("");
     if key.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'key' for read action");
@@ -290,11 +302,10 @@ async fn cmd_read(
     let body_bytes = resp.bytes().await.unwrap_or_default();
     let body_str = String::from_utf8_lossy(&body_bytes).to_string();
 
-    let output = serde_json::json!({
+    serde_json::json!({
         "body": body_str,
         "content_type": content_type,
-    });
-    println!("{output}");
+    })
 }
 
 async fn cmd_write(
@@ -305,7 +316,7 @@ async fn cmd_write(
     access_key: &str,
     secret_key: &str,
     input: &Value,
-) {
+) -> Value {
     let key = input["key"].as_str().unwrap_or("");
     if key.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'key' for write action");
@@ -355,8 +366,7 @@ async fn cmd_write(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_string();
-    let output = serde_json::json!({"ok": true, "etag": etag});
-    println!("{output}");
+    serde_json::json!({"ok": true, "etag": etag})
 }
 
 #[derive(serde::Deserialize)]
@@ -383,7 +393,7 @@ async fn cmd_list(
     access_key: &str,
     secret_key: &str,
     input: &Value,
-) {
+) -> Value {
     let prefix = input["prefix"].as_str().unwrap_or("");
     let query = if prefix.is_empty() {
         String::new()
@@ -441,11 +451,10 @@ async fn cmd_list(
             })
         })
         .collect();
-    let output = serde_json::json!({
+    serde_json::json!({
         "objects": objects,
         "count": objects.len(),
-    });
-    println!("{output}");
+    })
 }
 
 async fn cmd_delete(
@@ -456,7 +465,7 @@ async fn cmd_delete(
     access_key: &str,
     secret_key: &str,
     input: &Value,
-) {
+) -> Value {
     let key = input["key"].as_str().unwrap_or("");
     if key.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'key' for delete action");
@@ -488,8 +497,7 @@ async fn cmd_delete(
         fail(exit_code::GENERIC, format!("S3 error ({}): {body}", status));
     }
 
-    let output = serde_json::json!({"ok": true});
-    println!("{output}");
+    serde_json::json!({"ok": true})
 }
 
 fn url_host(url: &str) -> String {
@@ -561,7 +569,7 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"key": "mykey"});
-        cmd_read(
+        let result = cmd_read(
             &client,
             &mock_server.uri(),
             "mybucket",
@@ -571,6 +579,8 @@ mod tests {
             &input,
         )
         .await;
+        assert_eq!(result["body"], "hello world");
+        assert_eq!(result["content_type"], "text/plain");
     }
 
     #[tokio::test]
@@ -584,7 +594,7 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"key": "mykey", "body": "test content"});
-        cmd_write(
+        let result = cmd_write(
             &client,
             &mock_server.uri(),
             "mybucket",
@@ -594,6 +604,8 @@ mod tests {
             &input,
         )
         .await;
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["etag"], "\"abc123\"");
     }
 
     #[tokio::test]
@@ -607,7 +619,7 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"key": "mykey"});
-        cmd_delete(
+        let result = cmd_delete(
             &client,
             &mock_server.uri(),
             "mybucket",
@@ -617,6 +629,7 @@ mod tests {
             &input,
         )
         .await;
+        assert_eq!(result["ok"], true);
     }
 
     #[tokio::test]
@@ -636,7 +649,7 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"prefix": ""});
-        cmd_list(
+        let result = cmd_list(
             &client,
             &mock_server.uri(),
             "mybucket",
@@ -646,6 +659,8 @@ mod tests {
             &input,
         )
         .await;
+        assert_eq!(result["count"], 2);
+        assert_eq!(result["objects"][0]["key"], "file1.txt");
     }
 
     #[test]

@@ -105,11 +105,11 @@ async fn run() {
     let base_url = format!("https://api.airtable.com/v0/{}/{}", base_id, table_name);
 
     match action {
-        "list" => cmd_list(&client, &base_url, &token, &input).await,
-        "get" => cmd_get(&client, &base_url, &token, &input).await,
-        "create" => cmd_create(&client, &base_url, &token, &input).await,
-        "update" => cmd_update(&client, &base_url, &token, &input).await,
-        "delete" => cmd_delete(&client, &base_url, &token, &input).await,
+        "list" => println!("{}", cmd_list(&client, &base_url, &token, &input).await),
+        "get" => println!("{}", cmd_get(&client, &base_url, &token, &input).await),
+        "create" => println!("{}", cmd_create(&client, &base_url, &token, &input).await),
+        "update" => println!("{}", cmd_update(&client, &base_url, &token, &input).await),
+        "delete" => println!("{}", cmd_delete(&client, &base_url, &token, &input).await),
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{}'", action),
@@ -127,7 +127,7 @@ fn build_headers(token: &str) -> reqwest::header::HeaderMap {
     headers
 }
 
-async fn cmd_list(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_list(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let max_records = input["max_records"].as_u64().unwrap_or(100);
     let mut url = format!("{base_url}?maxRecords={max_records}");
 
@@ -169,10 +169,10 @@ async fn cmd_list(client: &reqwest::Client, base_url: &str, token: &str, input: 
         "records": records,
         "count": count,
     });
-    println!("{output}");
+    output
 }
 
-async fn cmd_get(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_get(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
         fail(
@@ -200,10 +200,10 @@ async fn cmd_get(client: &reqwest::Client, base_url: &str, token: &str, input: &
         );
     }
 
-    println!("{}", body);
+    body
 }
 
-async fn cmd_create(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_create(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let fields = input.get("fields").and_then(Value::as_object).cloned();
     let fields = match fields {
         Some(f) => f,
@@ -237,10 +237,10 @@ async fn cmd_create(client: &reqwest::Client, base_url: &str, token: &str, input
         );
     }
 
-    println!("{}", body);
+    body
 }
 
-async fn cmd_update(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_update(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
         fail(
@@ -281,10 +281,10 @@ async fn cmd_update(client: &reqwest::Client, base_url: &str, token: &str, input
         );
     }
 
-    println!("{}", body);
+    body
 }
 
-async fn cmd_delete(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_delete(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) -> Value {
     let record_id = input["record_id"].as_str().unwrap_or("");
     if record_id.is_empty() {
         fail(
@@ -317,7 +317,7 @@ async fn cmd_delete(client: &reqwest::Client, base_url: &str, token: &str, input
         "deleted": body["deleted"].as_bool().unwrap_or(false),
         "record_id": body["id"].as_str().unwrap_or(""),
     });
-    println!("{output}");
+    output
 }
 
 fn urlencode(s: &str) -> String {
@@ -384,7 +384,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"max_records": 10});
-        cmd_list(&client, &base_url, "test-token", &input).await;
+        let result = cmd_list(&client, &base_url, "test-token", &input).await;
+        assert_eq!(result["records"][0]["id"], "rec1");
+        assert_eq!(result["records"][0]["fields"]["Name"], "Alice");
     }
 
     #[tokio::test]
@@ -402,6 +404,8 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"fields": {"Name": "Bob"}});
-        cmd_create(&client, &base_url, "test-token", &input).await;
+        let result = cmd_create(&client, &base_url, "test-token", &input).await;
+        assert_eq!(result["id"], "rec_new");
+        assert_eq!(result["fields"]["Name"], "Bob");
     }
 }

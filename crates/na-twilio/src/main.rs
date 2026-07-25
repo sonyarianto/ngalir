@@ -122,16 +122,19 @@ async fn run() {
         .build()
         .unwrap();
 
-    cmd_send_message(
-        &client,
-        TWILIO_API_BASE,
-        &account_sid,
-        &auth_token,
-        &from_param,
-        &to_param,
-        body,
-    )
-    .await;
+    println!(
+        "{}",
+        cmd_send_message(
+            &client,
+            TWILIO_API_BASE,
+            &account_sid,
+            &auth_token,
+            &from_param,
+            &to_param,
+            body,
+        )
+        .await
+    );
 }
 
 async fn cmd_send_message(
@@ -142,7 +145,7 @@ async fn cmd_send_message(
     from: &str,
     to: &str,
     message_body: &str,
-) {
+) -> Value {
     let url = format!("{base_url}/2010-04-01/Accounts/{account_sid}/Messages.json");
     let params = [("From", from), ("To", to), ("Body", message_body)];
 
@@ -167,12 +170,11 @@ async fn cmd_send_message(
 
     let sid = body["sid"].as_str().unwrap_or("").to_string();
     let status = body["status"].as_str().unwrap_or("").to_string();
-    let output = serde_json::json!({
+    serde_json::json!({
         "ok": true,
         "sid": sid,
         "status": status,
-    });
-    println!("{output}");
+    })
 }
 
 #[cfg(test)]
@@ -218,7 +220,7 @@ mod tests {
             .await;
 
         let client = reqwest::Client::new();
-        cmd_send_message(
+        let result = cmd_send_message(
             &client,
             &mock_server.uri(),
             "AC123",
@@ -228,6 +230,9 @@ mod tests {
             "Hello",
         )
         .await;
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["sid"], "SM123");
+        assert_eq!(result["status"], "sent");
     }
 
     #[tokio::test]
@@ -243,7 +248,7 @@ mod tests {
             .await;
 
         let client = reqwest::Client::new();
-        cmd_send_message(
+        let result = cmd_send_message(
             &client,
             &mock_server.uri(),
             "AC456",
@@ -253,5 +258,7 @@ mod tests {
             "Hello from WhatsApp",
         )
         .await;
+        assert_eq!(result["sid"], "SM456");
+        assert_eq!(result["status"], "sent");
     }
 }

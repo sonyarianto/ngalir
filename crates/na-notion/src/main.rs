@@ -92,11 +92,26 @@ async fn run() {
         .unwrap();
 
     match action {
-        "query_database" => cmd_query_database(&client, NOTION_API_BASE, &token, &input).await,
-        "get_page" => cmd_get_page(&client, NOTION_API_BASE, &token, &input).await,
-        "create_page" => cmd_create_page(&client, NOTION_API_BASE, &token, &input).await,
-        "update_page" => cmd_update_page(&client, NOTION_API_BASE, &token, &input).await,
-        "append_block" => cmd_append_block(&client, NOTION_API_BASE, &token, &input).await,
+        "query_database" => println!(
+            "{}",
+            cmd_query_database(&client, NOTION_API_BASE, &token, &input).await
+        ),
+        "get_page" => println!(
+            "{}",
+            cmd_get_page(&client, NOTION_API_BASE, &token, &input).await
+        ),
+        "create_page" => println!(
+            "{}",
+            cmd_create_page(&client, NOTION_API_BASE, &token, &input).await
+        ),
+        "update_page" => println!(
+            "{}",
+            cmd_update_page(&client, NOTION_API_BASE, &token, &input).await
+        ),
+        "append_block" => println!(
+            "{}",
+            cmd_append_block(&client, NOTION_API_BASE, &token, &input).await
+        ),
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}'"),
@@ -207,7 +222,12 @@ async fn notion_patch(
     json
 }
 
-async fn cmd_query_database(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_query_database(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let database_id = input["database_id"].as_str().unwrap_or("");
     if database_id.is_empty() {
         fail(
@@ -234,10 +254,15 @@ async fn cmd_query_database(client: &reqwest::Client, base_url: &str, token: &st
         "has_more": has_more,
         "count": results.len(),
     });
-    println!("{output}");
+    output
 }
 
-async fn cmd_get_page(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_get_page(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let page_id = input["page_id"].as_str().unwrap_or("");
     if page_id.is_empty() {
         fail(exit_code::INVALID_INPUT, "missing 'page_id' for get_page");
@@ -245,10 +270,15 @@ async fn cmd_get_page(client: &reqwest::Client, base_url: &str, token: &str, inp
     let url = format!("{base_url}/pages/{page_id}");
     let result = notion_get(client, base_url, &url, token).await;
     let output = serde_json::json!({"page": result});
-    println!("{output}");
+    output
 }
 
-async fn cmd_create_page(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_create_page(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let properties = input.get("properties").and_then(Value::as_object).cloned();
     let properties = match properties {
         Some(p) => p,
@@ -273,10 +303,15 @@ async fn cmd_create_page(client: &reqwest::Client, base_url: &str, token: &str, 
     let url = format!("{base_url}/pages");
     let result = notion_post(client, base_url, &url, token, &body).await;
     let output = serde_json::json!({"page": result, "ok": true});
-    println!("{output}");
+    output
 }
 
-async fn cmd_update_page(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_update_page(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let page_id = input["page_id"].as_str().unwrap_or("");
     if page_id.is_empty() {
         fail(
@@ -297,10 +332,15 @@ async fn cmd_update_page(client: &reqwest::Client, base_url: &str, token: &str, 
     let body = serde_json::json!({"properties": properties});
     let result = notion_patch(client, base_url, &url, token, &body).await;
     let output = serde_json::json!({"page": result, "ok": true});
-    println!("{output}");
+    output
 }
 
-async fn cmd_append_block(client: &reqwest::Client, base_url: &str, token: &str, input: &Value) {
+async fn cmd_append_block(
+    client: &reqwest::Client,
+    base_url: &str,
+    token: &str,
+    input: &Value,
+) -> Value {
     let block_id = input["page_id"].as_str().unwrap_or("");
     if block_id.is_empty() {
         fail(
@@ -320,8 +360,7 @@ async fn cmd_append_block(client: &reqwest::Client, base_url: &str, token: &str,
     let url = format!("{base_url}/blocks/{block_id}/children");
     let body = serde_json::json!({"children": children});
     let _ = notion_patch(client, base_url, &url, token, &body).await;
-    let output = serde_json::json!({"ok": true});
-    println!("{output}");
+    serde_json::json!({"ok": true})
 }
 
 #[cfg(test)]
@@ -368,7 +407,10 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"database_id": "db123"});
-        cmd_query_database(&client, &base_url, "test-token", &input).await;
+        let result = cmd_query_database(&client, &base_url, "test-token", &input).await;
+        assert_eq!(result["count"], 2);
+        assert_eq!(result["results"][0]["id"], "1");
+        assert_eq!(result["has_more"], false);
     }
 
     #[tokio::test]
@@ -386,6 +428,7 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"page_id": "page123"});
-        cmd_get_page(&client, &base_url, "test-token", &input).await;
+        let result = cmd_get_page(&client, &base_url, "test-token", &input).await;
+        assert_eq!(result["page"]["id"], "page123");
     }
 }

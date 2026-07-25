@@ -93,8 +93,14 @@ async fn run() {
         .unwrap();
 
     match action {
-        "post_message" => cmd_post_message(&client, &token, channel, SLACK_API_BASE, &input).await,
-        "read_history" => cmd_read_history(&client, &token, channel, SLACK_API_BASE, &input).await,
+        "post_message" => println!(
+            "{}",
+            cmd_post_message(&client, &token, channel, SLACK_API_BASE, &input).await
+        ),
+        "read_history" => println!(
+            "{}",
+            cmd_read_history(&client, &token, channel, SLACK_API_BASE, &input).await
+        ),
         _ => fail(
             exit_code::INVALID_INPUT,
             format!("unknown action '{action}', expected 'post_message' or 'read_history'"),
@@ -108,7 +114,7 @@ async fn cmd_post_message(
     channel: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let text = input["text"].as_str().unwrap_or("");
     if text.is_empty() {
         fail(
@@ -144,7 +150,7 @@ async fn cmd_post_message(
 
     let ts = body.get("ts").and_then(Value::as_str).unwrap_or("");
     let output = serde_json::json!({ "ok": true, "ts": ts });
-    println!("{output}");
+    output
 }
 
 async fn cmd_read_history(
@@ -153,7 +159,7 @@ async fn cmd_read_history(
     channel: &str,
     base_url: &str,
     input: &Value,
-) {
+) -> Value {
     let count = input.get("count").and_then(Value::as_u64).unwrap_or(10);
     let limit = count.to_string();
 
@@ -189,7 +195,7 @@ async fn cmd_read_history(
     let msg_count = messages.as_array().map(|a| a.len() as i64).unwrap_or(0);
 
     let output = serde_json::json!({ "messages": messages, "count": msg_count });
-    println!("{output}");
+    output
 }
 
 #[cfg(test)]
@@ -300,7 +306,10 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"text": "Hello from test"});
-        cmd_post_message(&client, "test-token", "C123", &mock_server.uri(), &input).await;
+        let result =
+            cmd_post_message(&client, "test-token", "C123", &mock_server.uri(), &input).await;
+        assert_eq!(result["ok"], true);
+        assert_eq!(result["ts"], "1234567890.123456");
     }
 
     #[tokio::test]
@@ -320,6 +329,9 @@ mod tests {
 
         let client = reqwest::Client::new();
         let input = serde_json::json!({"count": 2});
-        cmd_read_history(&client, "test-token", "C123", &mock_server.uri(), &input).await;
+        let result =
+            cmd_read_history(&client, "test-token", "C123", &mock_server.uri(), &input).await;
+        assert_eq!(result["count"], 2);
+        assert_eq!(result["messages"][0]["text"], "first");
     }
 }
